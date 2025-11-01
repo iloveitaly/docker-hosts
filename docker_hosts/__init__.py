@@ -1,12 +1,3 @@
-import logging
-import os
+from docker_hosts.cli import main
 
-logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-)
-
-logger = logging.getLogger(__name__)
-
-
-def main():
-    logger.info("Hello, Logs!")
+__all__ = ["main"]
