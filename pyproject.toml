@@ -1,8 +1,8 @@
 [project]
 name = "docker-hosts"
 version = "0.1.0"
-description = ""
-keywords = []
+description = "Automatically manage Docker container hostnames in /etc/hosts for local development and CI"
+keywords = ["docker", "docker-compose", "hosts", "localhost", "development", "devops", "containers", "networking", "automation"]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["click", "docker", "structlog-config"]
