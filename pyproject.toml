@@ -24,3 +24,9 @@ module-root = ""
 [dependency-groups]
 dev = ["pytest>=8.3.3","pyright>=1.1.380","ruff>=0.8.0"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: integration tests that require Docker running",
+    "unit: unit tests that don't require Docker",
+]
+
