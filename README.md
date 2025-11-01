@@ -54,14 +54,10 @@ The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dr
 
 ## Features
 
-**Event-driven updates**: With `--listen`, the tool watches Docker events and updates your hosts file when containers start, stop, or get renamed. No polling, no delays.
-
-**Network-aware**: Picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
-
-**Safe writes**: Uses atomic file writes (write to temp, then rename) to avoid corrupting your hosts file. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
-
-**Structured logging**: Built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.
-
-**Dry-run mode**: Test what would be written before committing to changes. Great for understanding what the tool does or debugging issues.
+- Event-driven updates with `--listen` - watches Docker events and updates your hosts file when containers start, stop, or get renamed. No polling, no delays.
+- Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
+- Safe writes - uses atomic file writes (write to temp, then rename) to avoid corrupting your hosts file. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
+- Structured logging - built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.
+- Dry-run mode - test what would be written before committing to changes. Great for understanding what the tool does or debugging issues.
 
 # [MIT License](LICENSE.md)
