@@ -2,7 +2,7 @@
 CLI tool to automatically manage Docker container hostnames in /etc/hosts file.
 
 Monitors running containers and their networks, updating /etc/hosts with container
-IPs, hostnames, and network aliases. Supports continuous monitoring via --listen flag.
+IPs, hostnames, and network aliases.
 """
 
 from pathlib import Path
@@ -14,196 +14,149 @@ from structlog_config import configure_logger
 START_PATTERN = "### Start Docker Domains ###\n"
 END_PATTERN = "### End Docker Domains ###\n"
 
-hosts: dict[str, list[dict]] = {}
 
+class DockerHostsManager:
+    def __init__(self, client, log):
+        self.client = client
+        self.log = log
+        self.hosts: dict[str, list[dict]] = {}
 
-def build_container_hostname(hostname: str, domainname: str) -> str:
-    if not domainname:
-        return hostname
+    def build_container_hostname(self, hostname: str, domainname: str) -> str:
+        if not domainname:
+            return hostname
 
-    return f"{hostname}.{domainname}"
+        return f"{hostname}.{domainname}"
 
+    def extract_network_entries(self, networks: dict) -> list[dict]:
+        result = []
 
-def extract_network_entries(networks: dict) -> list[dict]:
-    result = []
+        for values in networks.values():
+            if not values["Aliases"]:
+                continue
 
-    for values in networks.values():
-        if not values["Aliases"]:
-            continue
+            ip_address = values["IPAddress"]
+            aliases = values["Aliases"]
 
-        ip_address = values["IPAddress"]
-        aliases = values["Aliases"]
+            result.append({
+                "ip": ip_address,
+                "aliases": aliases,
+            })
 
-        result.append({
-            "ip": ip_address,
-            "aliases": aliases,
-        })
+        return result
 
-    return result
+    def extract_default_entry(self, container_ip: str) -> dict | None:
+        if not container_ip:
+            return None
 
+        return {"ip": container_ip, "aliases": []}
 
-def extract_default_entry(container_ip: str) -> dict | None:
-    if not container_ip:
-        return None
+    def get_container_data(self, info: dict) -> list[dict]:
+        config = info["Config"]
+        network_settings = info["NetworkSettings"]
 
-    return {"ip": container_ip, "aliases": []}
+        container_hostname = self.build_container_hostname(
+            config["Hostname"],
+            config["Domainname"]
+        )
+        container_name = info["Name"].strip("/")
+        container_ip = network_settings["IPAddress"]
 
+        common_domains = [container_name, container_hostname]
+        result = []
 
-def get_container_data(info: dict) -> list[dict]:
-    config = info["Config"]
-    network_settings = info["NetworkSettings"]
+        network_entries = self.extract_network_entries(network_settings["Networks"])
+        for entry in network_entries:
+            result.append({
+                "ip": entry["ip"],
+                "name": container_name,
+                "domains": set(entry["aliases"] + common_domains),
+            })
 
-    container_hostname = build_container_hostname(
-        config["Hostname"],
-        config["Domainname"]
-    )
-    container_name = info["Name"].strip("/")
-    container_ip = network_settings["IPAddress"]
+        default_entry = self.extract_default_entry(container_ip)
+        if default_entry:
+            result.append({
+                "ip": default_entry["ip"],
+                "name": container_name,
+                "domains": common_domains,
+            })
 
-    common_domains = [container_name, container_hostname]
-    result = []
+        return result
 
-    network_entries = extract_network_entries(network_settings["Networks"])
-    for entry in network_entries:
-        result.append({
-            "ip": entry["ip"],
-            "name": container_name,
-            "domains": set(entry["aliases"] + common_domains),
-        })
+    def read_existing_hosts(self, hosts_path: Path) -> list[str]:
+        lines = hosts_path.read_text().splitlines(keepends=True)
 
-    default_entry = extract_default_entry(container_ip)
-    if default_entry:
-        result.append({
-            "ip": default_entry["ip"],
-            "name": container_name,
-            "domains": common_domains,
-        })
+        for i, line in enumerate(lines):
+            if line == START_PATTERN:
+                return lines[:i]
 
-    return result
+        return lines
 
+    def remove_trailing_blank_lines(self, lines: list[str]) -> list[str]:
+        while lines and not lines[-1].strip():
+            lines.pop()
 
-def read_existing_hosts(hosts_path: Path) -> list[str]:
-    lines = hosts_path.read_text().splitlines(keepends=True)
+        return lines
 
-    for i, line in enumerate(lines):
-        if line == START_PATTERN:
-            return lines[:i]
+    def generate_host_entries(self, tld: str) -> list[str]:
+        if not self.hosts:
+            return []
 
-    return lines
+        entries = [f"\n\n{START_PATTERN}"]
 
-
-def remove_trailing_blank_lines(lines: list[str]) -> list[str]:
-    while lines and not lines[-1].strip():
-        lines.pop()
-
-    return lines
-
-
-def generate_host_entries(tld: str) -> list[str]:
-    if not hosts:
-        return []
-
-    entries = [f"\n\n{START_PATTERN}"]
-
-    for addresses in hosts.values():
-        for addr in addresses:
-            suffixed_domains = [f"{d}.{tld}" for d in addr["domains"]]
-            sorted_domains = sorted(suffixed_domains)
-            entries.append(f"{addr['ip']}    {'   '.join(sorted_domains)}\n")
-
-    entries.append(f"{END_PATTERN}\n")
-
-    return entries
-
-
-def write_hosts_file(hosts_path: Path, content: str, log):
-    aux_path = hosts_path.with_suffix('.aux')
-    aux_path.write_text(content)
-    aux_path.replace(hosts_path)
-
-    log.info("wrote hosts file", path=str(hosts_path))
-
-
-def update_hosts_file(hosts_path: str, log, dry_run: bool, tld: str):
-    if not hosts:
-        log.info("removing all hosts before exit")
-    else:
-        log.info("updating hosts file")
-        for addresses in hosts.values():
+        for addresses in self.hosts.values():
             for addr in addresses:
-                log.info("host entry", ip=addr["ip"], domains=addr["domains"])
+                suffixed_domains = [f"{d}.{tld}" for d in addr["domains"]]
+                sorted_domains = sorted(suffixed_domains)
+                entries.append(f"{addr['ip']}    {'   '.join(sorted_domains)}\n")
 
-    path = Path(hosts_path)
-    lines = read_existing_hosts(path)
-    lines = remove_trailing_blank_lines(lines)
+        entries.append(f"{END_PATTERN}\n")
 
-    host_entries = generate_host_entries(tld)
+        return entries
 
-    if dry_run:
-        print(''.join(host_entries))
-        return
+    def write_hosts_file(self, hosts_path: Path, content: str):
+        aux_path = hosts_path.with_suffix('.aux')
+        aux_path.write_text(content)
+        aux_path.replace(hosts_path)
 
-    lines.extend(host_entries)
-    proposed_content = ''.join(lines)
-    log.info("proposed hosts content", content=proposed_content)
+        self.log.info("wrote hosts file", path=str(hosts_path))
 
-    write_hosts_file(path, proposed_content, log)
+    def update_hosts_file(self, hosts_path: str, dry_run: bool, tld: str):
+        if not self.hosts:
+            self.log.info("removing all hosts before exit")
+        else:
+            self.log.info("updating hosts file")
+            for addresses in self.hosts.values():
+                for addr in addresses:
+                    self.log.info("host entry", ip=addr["ip"], domains=addr["domains"])
 
+        path = Path(hosts_path)
+        lines = self.read_existing_hosts(path)
+        lines = self.remove_trailing_blank_lines(lines)
 
-def load_running_containers(client):
-    for container in client.containers.list():
-        hosts[container.id] = get_container_data(container.attrs)
+        host_entries = self.generate_host_entries(tld)
 
+        if dry_run:
+            print(''.join(host_entries))
+            return
 
-def handle_container_start(client, container_id: str, file: str, log, dry_run: bool, tld: str):
-    info = client.api.inspect_container(container_id)
-    hosts[container_id] = get_container_data(info)
-    update_hosts_file(file, log, dry_run, tld)
+        lines.extend(host_entries)
+        proposed_content = ''.join(lines)
+        self.log.info("proposed hosts content", content=proposed_content)
 
+        self.write_hosts_file(path, proposed_content)
 
-def handle_container_stop(container_id: str, file: str, log, dry_run: bool, tld: str):
-    hosts.pop(container_id, None)
-    update_hosts_file(file, log, dry_run, tld)
-
-
-def handle_container_rename(client, container_id: str, file: str, log, dry_run: bool, tld: str):
-    info = client.api.inspect_container(container_id)
-    hosts[container_id] = get_container_data(info)
-    update_hosts_file(file, log, dry_run, tld)
-
-
-def process_events(client, file: str, log, dry_run: bool, tld: str):
-    for event in client.events(decode=True):
-        if event.get("Type") != "container":
-            continue
-
-        status = event.get("status")
-        container_id = event.get("id")
-
-        if status == "start":
-            handle_container_start(client, container_id, file, log, dry_run, tld)
-            continue
-
-        if status in ("stop", "die", "destroy", "kill"):
-            handle_container_stop(container_id, file, log, dry_run, tld)
-            continue
-
-        if status == "rename":
-            handle_container_rename(client, container_id, file, log, dry_run, tld)
+    def load_running_containers(self):
+        for container in self.client.containers.list():
+            self.hosts[container.id] = self.get_container_data(container.attrs)
 
 
 @click.command()
 @click.argument('file', default='/etc/hosts')
 @click.option('--dry-run', is_flag=True, help='Simulate updates without writing to file')
 @click.option('--tld', default='localhost', show_default=True, help='TLD to append to domains')
-@click.option('--listen', is_flag=True, help='Listen for container events and update continuously')
-def main(file, dry_run, tld, listen):
+def main(file, dry_run, tld):
     log = configure_logger()
     client = docker.from_env()
-    load_running_containers(client)
-    update_hosts_file(file, log, dry_run, tld)
-
-    if not listen:
-        return
-
-    process_events(client, file, log, dry_run, tld)
+    manager = DockerHostsManager(client, log)
+    manager.load_running_containers()
+    manager.update_hosts_file(file, dry_run, tld)

@@ -20,16 +20,10 @@ pip install docker-hosts
 
 ## Usage
 
-Run once to update `/etc/hosts` with all running containers:
+Update `/etc/hosts` with all running containers:
 
 ```bash
 sudo docker-hosts
-```
-
-Run continuously, monitoring for container events:
-
-```bash
-sudo docker-hosts --listen
 ```
 
 Preview what would be written without making changes:
@@ -54,10 +48,37 @@ The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dr
 
 ## Features
 
-- Event-driven updates with `--listen` - watches Docker events and updates your hosts file when containers start, stop, or get renamed. No polling, no delays.
 - Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
 - Safe writes - uses atomic file writes (write to temp, then rename) to avoid corrupting your hosts file. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
 - Structured logging - built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.
 - Dry-run mode - test what would be written before committing to changes. Great for understanding what the tool does or debugging issues.
+
+## Development
+
+### Running Tests
+
+Tests require Docker to be running with the postgres and redis containers from `docker-compose.yml`:
+
+```bash
+docker compose up -d
+pytest -v
+```
+
+Run only unit tests (no Docker required):
+
+```bash
+pytest -v -m unit
+```
+
+Run only integration tests:
+
+```bash
+pytest -v -m integration
+```
+
+The test suite includes:
+- Integration tests that verify container detection using real Docker containers
+- Unit tests for data extraction and file operations
+- CLI tests using temporary hosts files in `tmp/hosts`
 
 # [MIT License](LICENSE.md)
