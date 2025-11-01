@@ -37,10 +37,12 @@ class DockerHostsManager:
             ip_address = values["IPAddress"]
             aliases = values["Aliases"]
 
-            result.append({
-                "ip": ip_address,
-                "aliases": aliases,
-            })
+            result.append(
+                {
+                    "ip": ip_address,
+                    "aliases": aliases,
+                }
+            )
 
         return result
 
@@ -55,8 +57,7 @@ class DockerHostsManager:
         network_settings = info["NetworkSettings"]
 
         container_hostname = self.build_container_hostname(
-            config["Hostname"],
-            config["Domainname"]
+            config["Hostname"], config["Domainname"]
         )
         container_name = info["Name"].strip("/")
         container_ip = network_settings["IPAddress"]
@@ -66,19 +67,23 @@ class DockerHostsManager:
 
         network_entries = self.extract_network_entries(network_settings["Networks"])
         for entry in network_entries:
-            result.append({
-                "ip": entry["ip"],
-                "name": container_name,
-                "domains": set(entry["aliases"] + common_domains),
-            })
+            result.append(
+                {
+                    "ip": entry["ip"],
+                    "name": container_name,
+                    "domains": set(entry["aliases"] + common_domains),
+                }
+            )
 
         default_entry = self.extract_default_entry(container_ip)
         if default_entry:
-            result.append({
-                "ip": default_entry["ip"],
-                "name": container_name,
-                "domains": common_domains,
-            })
+            result.append(
+                {
+                    "ip": default_entry["ip"],
+                    "name": container_name,
+                    "domains": common_domains,
+                }
+            )
 
         return result
 
@@ -114,7 +119,7 @@ class DockerHostsManager:
         return entries
 
     def write_hosts_file(self, hosts_path: Path, content: str):
-        aux_path = hosts_path.with_suffix('.aux')
+        aux_path = hosts_path.with_suffix(".aux")
         aux_path.write_text(content)
         aux_path.replace(hosts_path)
 
@@ -136,11 +141,11 @@ class DockerHostsManager:
         host_entries = self.generate_host_entries(tld)
 
         if dry_run:
-            print(''.join(host_entries))
+            print("".join(host_entries))
             return
 
         lines.extend(host_entries)
-        proposed_content = ''.join(lines)
+        proposed_content = "".join(lines)
         self.log.info("proposed hosts content", content=proposed_content)
 
         self.write_hosts_file(path, proposed_content)
@@ -151,9 +156,13 @@ class DockerHostsManager:
 
 
 @click.command()
-@click.argument('file', default='/etc/hosts')
-@click.option('--dry-run', is_flag=True, help='Simulate updates without writing to file')
-@click.option('--tld', default='localhost', show_default=True, help='TLD to append to domains')
+@click.argument("file", default="/etc/hosts")
+@click.option(
+    "--dry-run", is_flag=True, help="Simulate updates without writing to file"
+)
+@click.option(
+    "--tld", default="localhost", show_default=True, help="TLD to append to domains"
+)
 def main(file, dry_run, tld):
     log = configure_logger()
     client = docker.from_env()

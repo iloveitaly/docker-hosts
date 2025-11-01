@@ -17,12 +17,12 @@ def runner():
 @pytest.mark.integration
 def test_cli_help(runner):
     """Help output is displayed correctly."""
-    result = runner.invoke(main, ['--help'])
+    result = runner.invoke(main, ["--help"])
 
     assert result.exit_code == 0
-    assert 'Usage:' in result.output
-    assert '--dry-run' in result.output
-    assert '--tld' in result.output
+    assert "Usage:" in result.output
+    assert "--dry-run" in result.output
+    assert "--tld" in result.output
 
 
 @pytest.mark.integration
@@ -44,7 +44,7 @@ def test_cli_dry_run_flag(runner, tmp_path):
     original_content = "127.0.0.1    localhost\n"
     hosts_file.write_text(original_content)
 
-    result = runner.invoke(main, [str(hosts_file), '--dry-run'])
+    result = runner.invoke(main, [str(hosts_file), "--dry-run"])
 
     assert result.exit_code == 0
     assert hosts_file.read_text() == original_content
@@ -57,21 +57,27 @@ def test_cli_tld_option(runner, tmp_path):
     hosts_file = tmp_path / "hosts"
     hosts_file.write_text("127.0.0.1    localhost\n")
 
-    result = runner.invoke(main, [str(hosts_file), '--tld', 'test'])
+    result = runner.invoke(main, [str(hosts_file), "--tld", "test"])
 
     assert result.exit_code == 0
 
     content = hosts_file.read_text()
-    lines = content.split('\n')
+    lines = content.split("\n")
 
     for line in lines:
-        if line.strip() and not line.startswith('#') and 'localhost' not in line and START_PATTERN.strip() not in line and END_PATTERN.strip() not in line:
+        if (
+            line.strip()
+            and not line.startswith("#")
+            and "localhost" not in line
+            and START_PATTERN.strip() not in line
+            and END_PATTERN.strip() not in line
+        ):
             parts = line.split()
             if len(parts) >= 2:
                 domains = parts[1:]
                 for domain in domains:
                     if domain:
-                        assert domain.endswith('.test')
+                        assert domain.endswith(".test")
 
 
 @pytest.mark.integration
@@ -86,7 +92,9 @@ def test_cli_custom_file_path(runner, tmp_path):
     assert custom_file.exists()
 
     content = custom_file.read_text()
-    assert START_PATTERN.strip() in content or len(content) == len("127.0.0.1    localhost\n")
+    assert START_PATTERN.strip() in content or len(content) == len(
+        "127.0.0.1    localhost\n"
+    )
 
 
 @pytest.mark.integration
@@ -115,17 +123,13 @@ def test_cli_combines_all_options(runner, tmp_path):
     hosts_file = tmp_path / "hosts"
     hosts_file.write_text("127.0.0.1    localhost\n")
 
-    result = runner.invoke(main, [
-        str(hosts_file),
-        '--dry-run',
-        '--tld', 'dev'
-    ])
+    result = runner.invoke(main, [str(hosts_file), "--dry-run", "--tld", "dev"])
 
     assert result.exit_code == 0
     assert hosts_file.read_text() == "127.0.0.1    localhost\n"
 
     if START_PATTERN.strip() in result.output:
-        assert '.dev' in result.output or result.output.count('\n') <= 5
+        assert ".dev" in result.output or result.output.count("\n") <= 5
 
 
 @pytest.mark.integration
@@ -145,6 +149,6 @@ def test_cli_creates_docker_section(runner, tmp_path):
 @pytest.mark.unit
 def test_cli_no_listen_flag(runner):
     """--listen flag has been removed from CLI."""
-    result = runner.invoke(main, ['--help'])
+    result = runner.invoke(main, ["--help"])
 
-    assert '--listen' not in result.output
+    assert "--listen" not in result.output

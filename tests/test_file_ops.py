@@ -1,7 +1,5 @@
 """Unit tests for file operations."""
 
-from pathlib import Path
-
 import pytest
 
 from docker_hosts.cli import START_PATTERN, END_PATTERN
@@ -15,7 +13,7 @@ def test_read_existing_hosts_without_marker(manager, tmp_hosts_file):
 
     lines = manager.read_existing_hosts(tmp_hosts_file)
 
-    assert ''.join(lines) == content
+    assert "".join(lines) == content
 
 
 @pytest.mark.unit
@@ -26,7 +24,7 @@ def test_read_existing_hosts_with_marker(manager, tmp_hosts_file):
 
     lines = manager.read_existing_hosts(tmp_hosts_file)
 
-    assert ''.join(lines) == "127.0.0.1    localhost\n"
+    assert "".join(lines) == "127.0.0.1    localhost\n"
 
 
 @pytest.mark.unit
@@ -84,11 +82,7 @@ def test_generate_host_entries_single_container(manager):
     """Single container generates properly formatted entry."""
     manager.hosts = {
         "container1": [
-            {
-                "ip": "172.17.0.2",
-                "name": "postgres",
-                "domains": {"postgres", "db"}
-            }
+            {"ip": "172.17.0.2", "name": "postgres", "domains": {"postgres", "db"}}
         ]
     }
 
@@ -107,11 +101,7 @@ def test_generate_host_entries_domains_sorted(manager):
     """Domains are sorted alphabetically in output."""
     manager.hosts = {
         "container1": [
-            {
-                "ip": "172.17.0.2",
-                "name": "app",
-                "domains": {"zebra", "alpha", "middle"}
-            }
+            {"ip": "172.17.0.2", "name": "app", "domains": {"zebra", "alpha", "middle"}}
         ]
     }
 
@@ -131,7 +121,7 @@ def test_write_hosts_file_creates_aux(manager, tmp_hosts_file, log):
 
     assert tmp_hosts_file.read_text() == content
 
-    aux_file = tmp_hosts_file.with_suffix('.aux')
+    aux_file = tmp_hosts_file.with_suffix(".aux")
     assert not aux_file.exists()
 
 
@@ -141,11 +131,7 @@ def test_update_hosts_file_dry_run(manager, tmp_hosts_file, capsys):
     original_content = tmp_hosts_file.read_text()
     manager.hosts = {
         "container1": [
-            {
-                "ip": "172.17.0.2",
-                "name": "postgres",
-                "domains": {"postgres"}
-            }
+            {"ip": "172.17.0.2", "name": "postgres", "domains": {"postgres"}}
         ]
     }
 
@@ -164,13 +150,7 @@ def test_update_hosts_file_consistent_formatting(manager, tmp_hosts_file):
     tmp_hosts_file.write_text("127.0.0.1    localhost\n\n\n")
 
     manager.hosts = {
-        "container1": [
-            {
-                "ip": "172.17.0.2",
-                "name": "app",
-                "domains": {"app"}
-            }
-        ]
+        "container1": [{"ip": "172.17.0.2", "name": "app", "domains": {"app"}}]
     }
 
     manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
@@ -187,13 +167,7 @@ def test_update_hosts_file_with_existing_docker_section(manager, tmp_hosts_file)
     tmp_hosts_file.write_text(existing)
 
     manager.hosts = {
-        "container1": [
-            {
-                "ip": "172.17.0.3",
-                "name": "new",
-                "domains": {"new"}
-            }
-        ]
+        "container1": [{"ip": "172.17.0.3", "name": "new", "domains": {"new"}}]
     }
 
     manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")

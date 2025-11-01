@@ -24,7 +24,9 @@ def test_load_running_containers_finds_compose_services(manager):
 @pytest.mark.integration
 def test_extract_postgres_container_data(manager, docker_client):
     """Verify postgres container data is correctly extracted."""
-    postgres_containers = [c for c in docker_client.containers.list() if "postgres" in c.name]
+    postgres_containers = [
+        c for c in docker_client.containers.list() if "postgres" in c.name
+    ]
     assert len(postgres_containers) > 0
 
     postgres = postgres_containers[0]
@@ -105,7 +107,11 @@ def test_hosts_file_format(manager, tmp_hosts_file):
     content = tmp_hosts_file.read_text()
     lines = content.split("\n")
 
-    marker_count = sum(1 for line in lines if START_PATTERN.strip() in line or END_PATTERN.strip() in line)
+    marker_count = sum(
+        1
+        for line in lines
+        if START_PATTERN.strip() in line or END_PATTERN.strip() in line
+    )
     assert marker_count == 2
 
     in_docker_section = False
@@ -145,7 +151,7 @@ def test_atomic_file_write_creates_aux_file(manager, tmp_hosts_file):
     """Verify atomic writes use .aux temporary file."""
     manager.load_running_containers()
 
-    aux_file = tmp_hosts_file.with_suffix('.aux')
+    aux_file = tmp_hosts_file.with_suffix(".aux")
     assert not aux_file.exists()
 
     manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
