@@ -1,10 +1,8 @@
 # Automatic Docker Hosts Management
 
-Automatically manage Docker container hostnames in your `/etc/hosts` file. If you're running local services in Docker and want to access them via friendly names like `postgres.localhost` or `redis.localhost` instead of remembering IP addresses, this tool handles that for you.
+Automatically manage Docker container hostnames in your `/etc/hosts` file.
 
-I built this because manually editing `/etc/hosts` every time containers restart gets old fast. The tool monitors your Docker daemon, picks up container IPs and network aliases, and keeps your hosts file in sync. It's event-driven, so when you start, stop, or rename a container, your hosts file updates automatically.
-
-I needed to use Docker Compose for local development services (postgres, redis, etc.) and share the same compose file with CI. The problem was referencing services consistently - I wanted `DATABASE_URL=postgres://postgres.localhost/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template), it handles the DNS layer so you can use the same configuration locally and in CI.
+I built this to solve a specific problem: using Docker Compose for local development services (postgres, redis, etc.) and sharing the same compose file with CI. I wanted `DATABASE_URL=postgres://postgres.localhost/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere - no manual `/etc/hosts` edits, no environment-specific configuration. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template).
 
 ## Installation
 
