@@ -389,7 +389,7 @@ wheels = [
 
 [[package]]
 name = "structlog-config"
-version = "0.5.0"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "orjson" },
@@ -397,9 +397,9 @@ dependencies = [
     { name = "python-ipware" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/b5/28dc86e8e726bfa83171fa36ead30a0fbf7f6f16129829b22fc77760b398/structlog_config-0.5.0.tar.gz", hash = "sha256:403b6d16a5dc9c3f1eff186deb4ca76d750ab2e53eae4d292e12bf42a9178679", size = 14434, upload-time = "2025-10-31T12:56:10.781Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/4e/bf39c1ea6a418649862d140480a838b64d530fa06e02fed0ce5b78f0badb/structlog_config-0.6.0.tar.gz", hash = "sha256:048b8dfbef80a76f36faf98b69281de51bb90eba860c66f2d913bb5a0bde3e5a", size = 16730, upload-time = "2025-11-06T00:21:34.05Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/fd/41f27096e630e76d9f14e0ed70032213b22f8eab2ddb7cf7bbf2e44f49f6/structlog_config-0.5.0-py3-none-any.whl", hash = "sha256:90c3f7e6c358ef50901059a88861ef510ac7c1bfb24d90de57906db7204b75f0", size = 18406, upload-time = "2025-10-31T12:56:09.918Z" },
+    { url = "https://files.pythonhosted.org/packages/24/90/b5e7b5478ae89e2f6c273ecb1b6114fc8b66def5ba0bae08e7f992adc2a3/structlog_config-0.6.0-py3-none-any.whl", hash = "sha256:61683cbf81b2a73b459f2e3157fd0588e77c37da33e43261bce11a4d4d83078b", size = 21370, upload-time = "2025-11-06T00:21:32.829Z" },
 ]
 
 [[package]]
