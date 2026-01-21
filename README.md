@@ -46,6 +46,10 @@ docker-hosts /tmp/hosts --dry-run
 
 The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dry-run` first to see what it would do.
 
+### Windows / WSL
+
+When using Docker Desktop with WSL this will not work if you are not using `networkingMode=mirrored`.
+
 ## Features
 
 - Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
