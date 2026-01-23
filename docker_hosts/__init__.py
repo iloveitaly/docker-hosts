@@ -1,3 +1,1 @@
-from docker_hosts.cli import main
-
-__all__ = ["main"]
+from docker_hosts.cli import main  # noqa: F401
