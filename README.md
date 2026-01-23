@@ -48,7 +48,7 @@ The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dr
 
 ### Windows / WSL
 
-When using Docker Desktop with WSL this will not work if you are not using `networkingMode=mirrored`.
+You may encounter issues if using Docker Desktop. Running Docker directly on WSL works properly.
 
 ## Features
 
