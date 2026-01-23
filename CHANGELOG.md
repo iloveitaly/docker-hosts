@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/iloveitaly/docker-hosts/compare/v0.1.0...v0.1.1) (2026-01-23)
+
+
+### Bug Fixes
+
+* handle missing IPAddress in container network settings ([b61deb7](https://github.com/iloveitaly/docker-hosts/commit/b61deb73e934a32182f84fcdd6b803c2c85a2182))
+
+
+### Documentation
+
+* Add Windows/WSL section to README ([805fd9b](https://github.com/iloveitaly/docker-hosts/commit/805fd9b3504cc90a281b042ac5bc20619fb0e49a))
+* **commands:** add write_readme.md instructions for README drafting ([1d2124a](https://github.com/iloveitaly/docker-hosts/commit/1d2124a021aeb9efe6b94eba46c7213c15f2e638))
+
 ## 0.1.0 (2025-11-02)
 
 
