@@ -191,6 +191,23 @@ def test_get_container_data_no_default_ip(manager):
 
 
 @pytest.mark.unit
+def test_get_container_data_no_default_ip_key(manager):
+    """Container without default IP only has network entries."""
+    info = {
+        "Name": "/app",
+        "Config": {"Hostname": "web", "Domainname": ""},
+        "NetworkSettings": {
+            "Networks": {"custom": {"IPAddress": "172.18.0.3", "Aliases": ["webapp"]}},
+        },
+    }
+
+    result = manager.get_container_data(info)
+
+    assert len(result) == 1
+    assert result[0]["ip"] == "172.18.0.3"
+
+
+@pytest.mark.unit
 def test_get_container_data_multiple_networks(manager):
     """Container on multiple networks has entry for each."""
     info = {

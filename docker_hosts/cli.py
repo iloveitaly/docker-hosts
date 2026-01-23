@@ -46,7 +46,7 @@ class DockerHostsManager:
 
         return result
 
-    def extract_default_entry(self, container_ip: str) -> dict | None:
+    def extract_default_entry(self, container_ip: str | None) -> dict | None:
         if not container_ip:
             return None
 
@@ -60,7 +60,8 @@ class DockerHostsManager:
             config["Hostname"], config["Domainname"]
         )
         container_name = info["Name"].strip("/")
-        container_ip = network_settings["IPAddress"]
+        # in some versions of docker, IPAddress might be missing
+        container_ip = network_settings.get("IPAddress")
 
         common_domains = [container_name, container_hostname]
         result = []
