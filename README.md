@@ -55,6 +55,16 @@ Filter containers by their Docker names using repeatable regular expressions:
 sudo docker-hosts --include '^myproject-' --exclude 'worker'
 ```
 
+Update the hosts file and output the resulting aliases as JSON:
+
+```bash
+sudo docker-hosts --include '^myproject-' --json
+```
+
+Combine `--json` with `--dry-run` to output JSON without modifying the hosts file.
+Logs default to stderr so stdout can be safely piped to another command. Set
+`PYTHON_LOG_PATH` to override the log destination.
+
 When both options are provided, a container must match at least one `--include`
 expression and no `--exclude` expressions. Without filters, all running containers
 are included.

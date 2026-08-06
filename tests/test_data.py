@@ -70,8 +70,9 @@ def test_remove_colliding_domains_omits_domains_from_different_containers(
     }
 
     captured = capsys.readouterr()
-    assert "omitting colliding hostname" in captured.out
-    assert "postgres" in captured.out
+    captured_output = f"{captured.out}{captured.err}"
+    assert "omitting colliding hostname" in captured_output
+    assert "postgres" in captured_output
 
 
 @pytest.mark.unit

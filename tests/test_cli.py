@@ -1,5 +1,6 @@
 """Tests for CLI argument parsing and execution."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,7 @@ def test_cli_help(runner):
     assert "--tld" in result.output
     assert "--include" in result.output
     assert "--exclude" in result.output
+    assert "--json" in result.output
 
 
 @pytest.mark.integration
@@ -170,3 +172,35 @@ def test_cli_rejects_invalid_exclude_regex(runner):
 
     assert result.exit_code == 2
     assert "Invalid value for --exclude" in result.output
+
+
+@pytest.mark.integration
+def test_cli_json_updates_hosts_and_outputs_json(runner, tmp_path):
+    hosts_file = tmp_path / "hosts"
+    hosts_file.write_text("127.0.0.1    localhost\n")
+
+    result = runner.invoke(
+        main,
+        [str(hosts_file), "--include", "postgres|redis", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)
+    assert START_PATTERN.strip() in hosts_file.read_text()
+    assert "updating hosts file" in result.stderr
+
+
+@pytest.mark.integration
+def test_cli_json_dry_run_does_not_update_hosts(runner, tmp_path):
+    hosts_file = tmp_path / "hosts"
+    original_content = "127.0.0.1    localhost\n"
+    hosts_file.write_text(original_content)
+
+    result = runner.invoke(
+        main,
+        [str(hosts_file), "--include", "postgres|redis", "--json", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)
+    assert hosts_file.read_text() == original_content

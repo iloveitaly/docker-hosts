@@ -5,6 +5,8 @@ Monitors running containers and their networks, updating /etc/hosts with contain
 IPs, hostnames, and network aliases.
 """
 
+import json
+import os
 import re
 from pathlib import Path
 
@@ -149,14 +151,27 @@ class DockerHostsManager:
 
         self.log.info("wrote hosts file", path=str(hosts_path))
 
-    def update_hosts_file(self, hosts_path: str, dry_run: bool, tld: str):
+    def update_hosts_file(
+        self,
+        hosts_path: str,
+        dry_run: bool,
+        tld: str,
+        print_dry_run: bool = True,
+    ):
         if not self.hosts:
             self.log.info("removing all hosts before exit")
         else:
             self.log.info("updating hosts file")
             for addresses in self.hosts.values():
-                for addr in addresses:
-                    self.log.info("host entry", ip=addr["ip"], domains=addr["domains"])
+                for address in addresses:
+                    domains = sorted(
+                        f"{domain}.{tld}" for domain in address["domains"]
+                    )
+                    self.log.debug(
+                        "adding host entry",
+                        ip=address["ip"],
+                        domains=domains,
+                    )
 
         path = Path(hosts_path)
         lines = self.read_existing_hosts(path)
@@ -165,7 +180,9 @@ class DockerHostsManager:
         host_entries = self.generate_host_entries(tld)
 
         if dry_run:
-            print("".join(host_entries))
+            if print_dry_run:
+                print("".join(host_entries))
+
             return
 
         lines.extend(host_entries)
@@ -173,6 +190,24 @@ class DockerHostsManager:
         self.log.info("proposed hosts content", content=proposed_content)
 
         self.write_hosts_file(path, proposed_content)
+
+    def generate_json_output(self, tld: str) -> str:
+        result = {}
+
+        for container_name in sorted(self.hosts):
+            addresses = self.hosts[container_name]
+            result[container_name] = {
+                "addresses": sorted({address["ip"] for address in addresses}),
+                "aliases": sorted(
+                    {
+                        f"{domain}.{tld}"
+                        for address in addresses
+                        for domain in address["domains"]
+                    }
+                ),
+            }
+
+        return json.dumps(result, indent=2, sort_keys=True)
 
     def remove_colliding_domains(self) -> set[str]:
         domain_containers: dict[str, set[str]] = {}
@@ -225,7 +260,7 @@ class DockerHostsManager:
             ):
                 continue
 
-            self.hosts[container.id] = self.get_container_data(info)
+            self.hosts[container_name] = self.get_container_data(info)
 
         self.remove_colliding_domains()
 
@@ -250,12 +285,27 @@ class DockerHostsManager:
     metavar="REGEX",
     help="Exclude containers whose names match this regex; repeatable",
 )
-def main(file, dry_run, tld, include, exclude):
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Output the updated container aliases as JSON",
+)
+def main(file, dry_run, tld, include, exclude, json_output):
     include_patterns = compile_patterns(include, "--include")
     exclude_patterns = compile_patterns(exclude, "--exclude")
 
+    os.environ.setdefault("PYTHON_LOG_PATH", "stderr")
     log = configure_logger()
     client = docker.from_env()
     manager = DockerHostsManager(client, log)
     manager.load_running_containers(include_patterns, exclude_patterns)
-    manager.update_hosts_file(file, dry_run, tld)
+    manager.update_hosts_file(
+        file,
+        dry_run,
+        tld,
+        print_dry_run=not json_output,
+    )
+
+    if json_output:
+        click.echo(manager.generate_json_output(tld))

@@ -1,5 +1,7 @@
 """Unit tests for file operations."""
 
+import json
+
 import pytest
 
 from docker_hosts.cli import START_PATTERN, END_PATTERN
@@ -110,6 +112,44 @@ def test_generate_host_entries_domains_sorted(manager):
     entry_line = entries[1]
     domains = entry_line.split()[1:]
     assert domains == ["alpha.localhost", "middle.localhost", "zebra.localhost"]
+
+
+@pytest.mark.unit
+def test_generate_json_output_is_grouped_by_container(manager):
+    manager.hosts = {
+        "project-redis-1": [
+            {
+                "ip": "172.17.0.3",
+                "name": "project-redis-1",
+                "domains": {"redis", "project-redis-1"},
+            }
+        ],
+        "project-postgres-1": [
+            {
+                "ip": "172.18.0.2",
+                "name": "project-postgres-1",
+                "domains": {"postgres", "project-postgres-1"},
+            },
+            {
+                "ip": "172.17.0.2",
+                "name": "project-postgres-1",
+                "domains": {"postgres", "project-postgres-1"},
+            },
+        ],
+    }
+
+    result = json.loads(manager.generate_json_output("test"))
+
+    assert result == {
+        "project-postgres-1": {
+            "addresses": ["172.17.0.2", "172.18.0.2"],
+            "aliases": ["postgres.test", "project-postgres-1.test"],
+        },
+        "project-redis-1": {
+            "addresses": ["172.17.0.3"],
+            "aliases": ["project-redis-1.test", "redis.test"],
+        },
+    }
 
 
 @pytest.mark.unit
