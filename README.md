@@ -1,3 +1,8 @@
+[![Release Notes](https://img.shields.io/github/release/iloveitaly/docker-hosts)](https://github.com/iloveitaly/docker-hosts/releases)
+[![Downloads](https://static.pepy.tech/badge/docker-hosts/month)](https://pepy.tech/project/docker-hosts)
+![GitHub CI Status](https://github.com/iloveitaly/docker-hosts/actions/workflows/build_and_publish.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 # Automatic Docker Hosts Management
 
 Automatically manage Docker container hostnames in your `/etc/hosts` file.
@@ -86,3 +91,7 @@ The test suite includes:
 - CLI tests using temporary hosts files in `tmp/hosts`
 
 # [MIT License](LICENSE.md)
+
+---
+
+*This project was created from [iloveitaly/python-package-template](https://github.com/iloveitaly/python-package-template)*
