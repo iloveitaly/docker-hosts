@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from docker_hosts.cli import START_PATTERN, END_PATTERN
+from docker_hosts.cli import END_PATTERN, START_PATTERN
 
 
 @pytest.mark.integration

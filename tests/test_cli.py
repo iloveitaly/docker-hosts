@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from docker_hosts.cli import main, START_PATTERN, END_PATTERN
+from docker_hosts.cli import END_PATTERN, START_PATTERN, main
 
 
 @pytest.fixture
