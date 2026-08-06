@@ -1,5 +1,7 @@
 """Integration tests using real Docker containers from docker-compose.yml."""
 
+import re
+
 import pytest
 
 from docker_hosts.cli import START_PATTERN, END_PATTERN
@@ -19,6 +21,23 @@ def test_load_running_containers_finds_compose_services(manager):
 
     assert any("postgres" in name for name in container_names)
     assert any("redis" in name for name in container_names)
+
+
+@pytest.mark.integration
+def test_load_running_containers_applies_name_filters(manager):
+    manager.load_running_containers(
+        include_patterns=(re.compile("postgres|redis"),),
+        exclude_patterns=(re.compile("redis"),),
+    )
+
+    container_names = [
+        container_data["name"]
+        for container_data_list in manager.hosts.values()
+        for container_data in container_data_list
+    ]
+
+    assert container_names
+    assert all("postgres" in name for name in container_names)
 
 
 @pytest.mark.integration

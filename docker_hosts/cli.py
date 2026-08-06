@@ -5,6 +5,7 @@ Monitors running containers and their networks, updating /etc/hosts with contain
 IPs, hostnames, and network aliases.
 """
 
+import re
 from pathlib import Path
 
 import click
@@ -13,6 +14,28 @@ from structlog_config import configure_logger
 
 START_PATTERN = "### Start Docker Domains ###\n"
 END_PATTERN = "### End Docker Domains ###\n"
+
+
+def compile_patterns(
+    patterns: tuple[str, ...], option_name: str
+) -> tuple[re.Pattern[str], ...]:
+    try:
+        return tuple(re.compile(pattern) for pattern in patterns)
+    except re.error as error:
+        raise click.BadParameter(str(error), param_hint=option_name) from error
+
+
+def container_name_is_included(
+    container_name: str,
+    include_patterns: tuple[re.Pattern[str], ...],
+    exclude_patterns: tuple[re.Pattern[str], ...],
+) -> bool:
+    if include_patterns and not any(
+        pattern.search(container_name) for pattern in include_patterns
+    ):
+        return False
+
+    return not any(pattern.search(container_name) for pattern in exclude_patterns)
 
 
 class DockerHostsManager:
@@ -82,7 +105,7 @@ class DockerHostsManager:
                 {
                     "ip": default_entry["ip"],
                     "name": container_name,
-                    "domains": common_domains,
+                    "domains": set(common_domains),
                 }
             )
 
@@ -151,9 +174,60 @@ class DockerHostsManager:
 
         self.write_hosts_file(path, proposed_content)
 
-    def load_running_containers(self):
+    def remove_colliding_domains(self) -> set[str]:
+        domain_containers: dict[str, set[str]] = {}
+
+        for container_id, addresses in self.hosts.items():
+            container_domains = {
+                domain for address in addresses for domain in address["domains"]
+            }
+
+            for domain in container_domains:
+                domain_containers.setdefault(domain, set()).add(container_id)
+
+        colliding_domains = {
+            domain
+            for domain, container_ids in domain_containers.items()
+            if len(container_ids) > 1
+        }
+
+        for domain in sorted(colliding_domains):
+            container_names = sorted(
+                {
+                    address["name"]
+                    for container_id in domain_containers[domain]
+                    for address in self.hosts[container_id]
+                }
+            )
+            self.log.warning(
+                "omitting colliding hostname",
+                hostname=domain,
+                containers=container_names,
+            )
+
+        for addresses in self.hosts.values():
+            for address in addresses:
+                address["domains"].difference_update(colliding_domains)
+
+        return colliding_domains
+
+    def load_running_containers(
+        self,
+        include_patterns: tuple[re.Pattern[str], ...] = (),
+        exclude_patterns: tuple[re.Pattern[str], ...] = (),
+    ):
         for container in self.client.containers.list():
-            self.hosts[container.id] = self.get_container_data(container.attrs)
+            info = container.attrs
+            container_name = info["Name"].strip("/")
+
+            if not container_name_is_included(
+                container_name, include_patterns, exclude_patterns
+            ):
+                continue
+
+            self.hosts[container.id] = self.get_container_data(info)
+
+        self.remove_colliding_domains()
 
 
 @click.command()
@@ -164,9 +238,24 @@ class DockerHostsManager:
 @click.option(
     "--tld", default="localhost", show_default=True, help="TLD to append to domains"
 )
-def main(file, dry_run, tld):
+@click.option(
+    "--include",
+    multiple=True,
+    metavar="REGEX",
+    help="Include containers whose names match this regex; repeatable",
+)
+@click.option(
+    "--exclude",
+    multiple=True,
+    metavar="REGEX",
+    help="Exclude containers whose names match this regex; repeatable",
+)
+def main(file, dry_run, tld, include, exclude):
+    include_patterns = compile_patterns(include, "--include")
+    exclude_patterns = compile_patterns(exclude, "--exclude")
+
     log = configure_logger()
     client = docker.from_env()
     manager = DockerHostsManager(client, log)
-    manager.load_running_containers()
+    manager.load_running_containers(include_patterns, exclude_patterns)
     manager.update_hosts_file(file, dry_run, tld)

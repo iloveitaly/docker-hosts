@@ -1,6 +1,103 @@
 """Unit tests for data extraction functions."""
 
+import re
+
 import pytest
+
+from docker_hosts.cli import container_name_is_included
+
+
+@pytest.mark.unit
+def test_container_name_is_included_without_patterns():
+    assert container_name_is_included("myproject-postgres-1", (), ())
+
+
+@pytest.mark.unit
+def test_container_name_is_included_when_any_include_matches():
+    include_patterns = (re.compile("^other-"), re.compile("postgres"))
+
+    assert container_name_is_included("myproject-postgres-1", include_patterns, ())
+
+
+@pytest.mark.unit
+def test_container_name_is_not_included_when_no_include_matches():
+    include_patterns = (re.compile("^other-"), re.compile("redis"))
+
+    assert not container_name_is_included(
+        "myproject-postgres-1", include_patterns, ()
+    )
+
+
+@pytest.mark.unit
+def test_container_name_is_not_included_when_excluded():
+    include_patterns = (re.compile("^myproject-"),)
+    exclude_patterns = (re.compile("postgres"),)
+
+    assert not container_name_is_included(
+        "myproject-postgres-1", include_patterns, exclude_patterns
+    )
+
+
+@pytest.mark.unit
+def test_remove_colliding_domains_omits_domains_from_different_containers(
+    manager, capsys
+):
+    manager.hosts = {
+        "container-1": [
+            {
+                "ip": "172.17.0.2",
+                "name": "project-one-postgres-1",
+                "domains": {"project-one-postgres-1", "postgres"},
+            }
+        ],
+        "container-2": [
+            {
+                "ip": "172.18.0.2",
+                "name": "project-two-postgres-1",
+                "domains": {"project-two-postgres-1", "postgres"},
+            }
+        ],
+    }
+
+    collisions = manager.remove_colliding_domains()
+
+    assert collisions == {"postgres"}
+    assert manager.hosts["container-1"][0]["domains"] == {
+        "project-one-postgres-1"
+    }
+    assert manager.hosts["container-2"][0]["domains"] == {
+        "project-two-postgres-1"
+    }
+
+    captured = capsys.readouterr()
+    assert "omitting colliding hostname" in captured.out
+    assert "postgres" in captured.out
+
+
+@pytest.mark.unit
+def test_remove_colliding_domains_keeps_domain_on_multiple_container_networks(manager):
+    manager.hosts = {
+        "container-1": [
+            {
+                "ip": "172.17.0.2",
+                "name": "project-postgres-1",
+                "domains": {"project-postgres-1", "postgres"},
+            },
+            {
+                "ip": "172.18.0.2",
+                "name": "project-postgres-1",
+                "domains": {"project-postgres-1", "postgres"},
+            },
+        ]
+    }
+
+    collisions = manager.remove_colliding_domains()
+
+    assert collisions == set()
+    assert all(
+        "postgres" in address["domains"]
+        for address in manager.hosts["container-1"]
+    )
 
 
 @pytest.mark.unit

@@ -49,6 +49,19 @@ Specify a custom hosts file path:
 docker-hosts /tmp/hosts --dry-run
 ```
 
+Filter containers by their Docker names using repeatable regular expressions:
+
+```bash
+sudo docker-hosts --include '^myproject-' --exclude 'worker'
+```
+
+When both options are provided, a container must match at least one `--include`
+expression and no `--exclude` expressions. Without filters, all running containers
+are included.
+
+If multiple included containers claim the same hostname, the ambiguous hostname is
+omitted from all generated entries and a warning identifies the affected containers.
+
 The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dry-run` first to see what it would do.
 
 ### Windows / WSL

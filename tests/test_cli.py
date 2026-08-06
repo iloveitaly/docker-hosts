@@ -23,6 +23,8 @@ def test_cli_help(runner):
     assert "Usage:" in result.output
     assert "--dry-run" in result.output
     assert "--tld" in result.output
+    assert "--include" in result.output
+    assert "--exclude" in result.output
 
 
 @pytest.mark.integration
@@ -152,3 +154,19 @@ def test_cli_no_listen_flag(runner):
     result = runner.invoke(main, ["--help"])
 
     assert "--listen" not in result.output
+
+
+@pytest.mark.unit
+def test_cli_rejects_invalid_include_regex(runner):
+    result = runner.invoke(main, ["--include", "["])
+
+    assert result.exit_code == 2
+    assert "Invalid value for --include" in result.output
+
+
+@pytest.mark.unit
+def test_cli_rejects_invalid_exclude_regex(runner):
+    result = runner.invoke(main, ["--exclude", "["])
+
+    assert result.exit_code == 2
+    assert "Invalid value for --exclude" in result.output
