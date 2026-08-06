@@ -7,6 +7,7 @@ import pytest
 from click.testing import CliRunner
 
 from docker_hosts.cli import END_PATTERN, START_PATTERN, main
+from docker_hosts.version import __version__
 
 
 @pytest.fixture
@@ -27,6 +28,16 @@ def test_cli_help(runner):
     assert "--include" in result.output
     assert "--exclude" in result.output
     assert "--json" in result.output
+    assert "--version" in result.output
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("flag", ["--version", "-V"])
+def test_cli_version(runner, flag):
+    result = runner.invoke(main, [flag])
+
+    assert result.exit_code == 0
+    assert result.output == f"docker-hosts version {__version__}\n"
 
 
 @pytest.mark.integration

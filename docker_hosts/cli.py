@@ -14,6 +14,8 @@ import click
 import docker
 from structlog_config import configure_logger
 
+from docker_hosts.version import __version__
+
 START_PATTERN = "### Start Docker Domains ###\n"
 END_PATTERN = "### End Docker Domains ###\n"
 
@@ -164,9 +166,7 @@ class DockerHostsManager:
             self.log.info("updating hosts file")
             for addresses in self.hosts.values():
                 for address in addresses:
-                    domains = sorted(
-                        f"{domain}.{tld}" for domain in address["domains"]
-                    )
+                    domains = sorted(f"{domain}.{tld}" for domain in address["domains"])
                     self.log.debug(
                         "adding host entry",
                         ip=address["ip"],
@@ -290,6 +290,13 @@ class DockerHostsManager:
     "json_output",
     is_flag=True,
     help="Output the updated container aliases as JSON",
+)
+@click.version_option(
+    __version__,
+    "--version",
+    "-V",
+    prog_name="docker-hosts",
+    message="%(prog)s version %(version)s",
 )
 def main(file, dry_run, tld, include, exclude, json_output):
     include_patterns = compile_patterns(include, "--include")
