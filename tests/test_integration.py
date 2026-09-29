@@ -8,14 +8,14 @@ from docker_hosts.cli import END_PATTERN, START_PATTERN
 
 
 @pytest.mark.integration
-def test_load_running_containers_finds_compose_services(manager):
+def test_load_running_containers_finds_compose_services(docker_manager):
     """Verify that postgres and redis containers from docker-compose are detected."""
-    manager.load_running_containers()
+    docker_manager.load_running_containers()
 
-    assert len(manager.hosts) >= 2
+    assert len(docker_manager.hosts) >= 2
 
     container_names = []
-    for container_data_list in manager.hosts.values():
+    for container_data_list in docker_manager.hosts.values():
         for container_data in container_data_list:
             container_names.append(container_data["name"])
 
@@ -24,15 +24,15 @@ def test_load_running_containers_finds_compose_services(manager):
 
 
 @pytest.mark.integration
-def test_load_running_containers_applies_name_filters(manager):
-    manager.load_running_containers(
+def test_load_running_containers_applies_name_filters(docker_manager):
+    docker_manager.load_running_containers(
         include_patterns=(re.compile("postgres|redis"),),
         exclude_patterns=(re.compile("redis"),),
     )
 
     container_names = [
         container_data["name"]
-        for container_data_list in manager.hosts.values()
+        for container_data_list in docker_manager.hosts.values()
         for container_data in container_data_list
     ]
 
@@ -41,7 +41,7 @@ def test_load_running_containers_applies_name_filters(manager):
 
 
 @pytest.mark.integration
-def test_extract_postgres_container_data(manager, docker_client):
+def test_extract_postgres_container_data(docker_manager, docker_client):
     """Verify postgres container data is correctly extracted."""
     postgres_containers = [
         c for c in docker_client.containers.list() if "postgres" in c.name
@@ -49,7 +49,7 @@ def test_extract_postgres_container_data(manager, docker_client):
     assert len(postgres_containers) > 0
 
     postgres = postgres_containers[0]
-    container_data = manager.get_container_data(postgres.attrs)
+    container_data = docker_manager.get_container_data(postgres.attrs)
 
     assert len(container_data) > 0
 
@@ -63,13 +63,13 @@ def test_extract_postgres_container_data(manager, docker_client):
 
 
 @pytest.mark.integration
-def test_extract_redis_container_data(manager, docker_client):
+def test_extract_redis_container_data(docker_manager, docker_client):
     """Verify redis container data is correctly extracted."""
     redis_containers = [c for c in docker_client.containers.list() if "redis" in c.name]
     assert len(redis_containers) > 0
 
     redis = redis_containers[0]
-    container_data = manager.get_container_data(redis.attrs)
+    container_data = docker_manager.get_container_data(redis.attrs)
 
     assert len(container_data) > 0
 
@@ -83,10 +83,12 @@ def test_extract_redis_container_data(manager, docker_client):
 
 
 @pytest.mark.integration
-def test_full_workflow_writes_hosts_file(manager, tmp_hosts_file):
+def test_full_workflow_writes_hosts_file(docker_manager, tmp_hosts_file):
     """Test complete workflow: load containers → generate entries → write file."""
-    manager.load_running_containers()
-    manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
+    docker_manager.load_running_containers()
+    docker_manager.update_hosts_file(
+        str(tmp_hosts_file), dry_run=False, tld="localhost"
+    )
 
     content = tmp_hosts_file.read_text()
 
@@ -118,10 +120,10 @@ def test_full_workflow_writes_hosts_file(manager, tmp_hosts_file):
 
 
 @pytest.mark.integration
-def test_hosts_file_format(manager, tmp_hosts_file):
+def test_hosts_file_format(docker_manager, tmp_hosts_file):
     """Verify generated hosts file has correct format."""
-    manager.load_running_containers()
-    manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="test")
+    docker_manager.load_running_containers()
+    docker_manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="test")
 
     content = tmp_hosts_file.read_text()
     lines = content.split("\n")
@@ -151,12 +153,12 @@ def test_hosts_file_format(manager, tmp_hosts_file):
 
 
 @pytest.mark.integration
-def test_dry_run_mode(manager, tmp_hosts_file, capsys):
+def test_dry_run_mode(docker_manager, tmp_hosts_file, capsys):
     """Verify dry-run mode prints entries without writing file."""
     original_content = tmp_hosts_file.read_text()
 
-    manager.load_running_containers()
-    manager.update_hosts_file(str(tmp_hosts_file), dry_run=True, tld="localhost")
+    docker_manager.load_running_containers()
+    docker_manager.update_hosts_file(str(tmp_hosts_file), dry_run=True, tld="localhost")
 
     assert tmp_hosts_file.read_text() == original_content
 
@@ -166,27 +168,31 @@ def test_dry_run_mode(manager, tmp_hosts_file, capsys):
 
 
 @pytest.mark.integration
-def test_atomic_file_write_creates_aux_file(manager, tmp_hosts_file):
+def test_atomic_file_write_creates_aux_file(docker_manager, tmp_hosts_file):
     """Verify atomic writes use .aux temporary file."""
-    manager.load_running_containers()
+    docker_manager.load_running_containers()
 
     aux_file = tmp_hosts_file.with_suffix(".aux")
     assert not aux_file.exists()
 
-    manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
+    docker_manager.update_hosts_file(
+        str(tmp_hosts_file), dry_run=False, tld="localhost"
+    )
 
     assert not aux_file.exists()
     assert tmp_hosts_file.exists()
 
 
 @pytest.mark.integration
-def test_preserves_existing_hosts_content(manager, tmp_hosts_file):
+def test_preserves_existing_hosts_content(docker_manager, tmp_hosts_file):
     """Verify pre-marker content is preserved when updating."""
     custom_content = "127.0.0.1    localhost\n192.168.1.1    custom.host\n"
     tmp_hosts_file.write_text(custom_content)
 
-    manager.load_running_containers()
-    manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
+    docker_manager.load_running_containers()
+    docker_manager.update_hosts_file(
+        str(tmp_hosts_file), dry_run=False, tld="localhost"
+    )
 
     content = tmp_hosts_file.read_text()
 

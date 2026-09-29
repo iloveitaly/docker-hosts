@@ -1,12 +1,17 @@
 """Tests for CLI argument parsing and execution."""
 
 import json
-from pathlib import Path
+import os
 
 import pytest
 from click.testing import CliRunner
 
-from docker_hosts.cli import END_PATTERN, START_PATTERN, main
+from docker_hosts.cli import (
+    END_PATTERN,
+    START_PATTERN,
+    ensure_hosts_file_is_writable,
+    main,
+)
 from docker_hosts.version import __version__
 
 
@@ -16,7 +21,7 @@ def runner():
     return CliRunner()
 
 
-@pytest.mark.integration
+@pytest.mark.unit
 def test_cli_help(runner):
     """Help output is displayed correctly."""
     result = runner.invoke(main, ["--help"])
@@ -38,6 +43,29 @@ def test_cli_version(runner, flag):
 
     assert result.exit_code == 0
     assert result.output == f"docker-hosts version {__version__}\n"
+
+
+@pytest.mark.unit
+def test_hosts_file_permission_error_is_red_and_actionable(runner, tmp_path):
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root bypasses filesystem permissions")
+
+    restricted_directory = tmp_path / "restricted"
+    restricted_directory.mkdir()
+    hosts_file = restricted_directory / "hosts"
+    hosts_file.write_text("127.0.0.1    localhost\n")
+    restricted_directory.chmod(0o500)
+
+    try:
+        result = runner.invoke(main, [str(hosts_file)], color=True)
+    finally:
+        restricted_directory.chmod(0o700)
+
+    assert result.exit_code == 1
+    assert "\x1b[31m" in result.stderr
+    assert "Permission denied" in result.stderr
+    assert "sudo" in result.stderr
+    assert "--dry-run" in result.stderr
 
 
 @pytest.mark.integration
@@ -113,12 +141,9 @@ def test_cli_custom_file_path(runner, tmp_path):
 
 
 @pytest.mark.integration
-def test_cli_with_tmp_hosts(runner):
-    """CLI works with tmp/hosts file path."""
-    tmp_dir = Path.cwd() / "tmp"
-    tmp_dir.mkdir(exist_ok=True)
-
-    hosts_file = tmp_dir / "hosts"
+def test_cli_with_tmp_hosts(runner, tmp_path):
+    """CLI works with an isolated hosts file path."""
+    hosts_file = tmp_path / "hosts"
     hosts_file.write_text("127.0.0.1    localhost\n")
 
     result = runner.invoke(main, [str(hosts_file)])
@@ -128,8 +153,6 @@ def test_cli_with_tmp_hosts(runner):
 
     content = hosts_file.read_text()
     assert "127.0.0.1    localhost" in content
-
-    hosts_file.unlink()
 
 
 @pytest.mark.integration
@@ -159,6 +182,16 @@ def test_cli_creates_docker_section(runner, tmp_path):
 
     content = hosts_file.read_text()
     assert "127.0.0.1    localhost" in content
+
+
+@pytest.mark.unit
+def test_ensure_hosts_file_is_writable_allows_missing_file(tmp_path):
+    ensure_hosts_file_is_writable(tmp_path / "hosts")
+
+
+@pytest.mark.unit
+def test_ensure_hosts_file_is_writable_defers_missing_parent(tmp_path):
+    ensure_hosts_file_is_writable(tmp_path / "nope" / "hosts")
 
 
 @pytest.mark.unit

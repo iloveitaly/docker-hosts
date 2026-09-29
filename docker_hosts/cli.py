@@ -8,11 +8,12 @@ IPs, hostnames, and network aliases.
 import json
 import os
 import re
+import stat
 from pathlib import Path
 
 import click
 import docker
-from structlog_config import configure_logger
+from structlog_config import LoggerWithContext, configure_logger
 
 from docker_hosts.version import __version__
 
@@ -42,20 +43,41 @@ def container_name_is_included(
     return not any(pattern.search(container_name) for pattern in exclude_patterns)
 
 
+def hosts_file_permission_error(hosts_path: Path) -> click.ClickException:
+    message = (
+        f"Permission denied: cannot update {hosts_path}. "
+        "Re-run with sudo or use --dry-run."
+    )
+    return click.ClickException(click.style(message, fg="red"))
+
+
+def ensure_hosts_file_is_writable(hosts_path: Path) -> None:
+    if not hosts_path.parent.exists():
+        return
+
+    if not os.access(hosts_path.parent, os.W_OK | os.X_OK):
+        raise hosts_file_permission_error(hosts_path)
+
+    if hosts_path.exists() and not os.access(hosts_path, os.R_OK):
+        raise hosts_file_permission_error(hosts_path)
+
+
 class DockerHostsManager:
-    def __init__(self, client, log):
+    def __init__(self, client: docker.DockerClient | None, log: LoggerWithContext):
         self.client = client
         self.log = log
-        self.hosts: dict[str, list[dict]] = {}
+        self.hosts: dict[str, list[dict[str, str | set[str]]]] = {}
 
-    def build_container_hostname(self, hostname: str, domainname: str) -> str:
+    def build_container_hostname(self, hostname: str, domainname: str | None) -> str:
         if not domainname:
             return hostname
 
         return f"{hostname}.{domainname}"
 
-    def extract_network_entries(self, networks: dict) -> list[dict]:
-        result = []
+    def extract_network_entries(
+        self, networks: dict
+    ) -> list[dict[str, str | list[str]]]:
+        result: list[dict[str, str | list[str]]] = []
 
         for values in networks.values():
             if not values["Aliases"]:
@@ -73,13 +95,15 @@ class DockerHostsManager:
 
         return result
 
-    def extract_default_entry(self, container_ip: str | None) -> dict | None:
+    def extract_default_entry(
+        self, container_ip: str | None
+    ) -> dict[str, str | list[str]] | None:
         if not container_ip:
             return None
 
         return {"ip": container_ip, "aliases": []}
 
-    def get_container_data(self, info: dict) -> list[dict]:
+    def get_container_data(self, info: dict) -> list[dict[str, str | set[str]]]:
         config = info["Config"]
         network_settings = info["NetworkSettings"]
 
@@ -91,23 +115,32 @@ class DockerHostsManager:
         container_ip = network_settings.get("IPAddress")
 
         common_domains = [container_name, container_hostname]
-        result = []
+        result: list[dict[str, str | set[str]]] = []
 
         network_entries = self.extract_network_entries(network_settings["Networks"])
         for entry in network_entries:
+            entry_ip = entry["ip"]
+            assert isinstance(entry_ip, str)
+
+            entry_aliases = entry["aliases"]
+            assert isinstance(entry_aliases, list)
+
             result.append(
                 {
-                    "ip": entry["ip"],
+                    "ip": entry_ip,
                     "name": container_name,
-                    "domains": set(entry["aliases"] + common_domains),
+                    "domains": set(entry_aliases + common_domains),
                 }
             )
 
         default_entry = self.extract_default_entry(container_ip)
         if default_entry:
+            default_ip = default_entry["ip"]
+            assert isinstance(default_ip, str)
+
             result.append(
                 {
-                    "ip": default_entry["ip"],
+                    "ip": default_ip,
                     "name": container_name,
                     "domains": set(common_domains),
                 }
@@ -115,18 +148,35 @@ class DockerHostsManager:
 
         return result
 
-    def read_existing_hosts(self, hosts_path: Path) -> list[str]:
+    def split_existing_hosts(self, hosts_path: Path) -> tuple[list[str], list[str]]:
         lines = hosts_path.read_text().splitlines(keepends=True)
 
-        for i, line in enumerate(lines):
-            if line == START_PATTERN:
-                return lines[:i]
+        try:
+            start = lines.index(START_PATTERN)
+        except ValueError:
+            return lines, []
 
-        return lines
+        try:
+            end = lines.index(END_PATTERN, start + 1)
+        except ValueError:
+            return lines[:start], []
+
+        return lines[:start], lines[end + 1 :]
+
+    def read_existing_hosts(self, hosts_path: Path) -> list[str]:
+        head, _ = self.split_existing_hosts(hosts_path)
+
+        return head
 
     def remove_trailing_blank_lines(self, lines: list[str]) -> list[str]:
         while lines and not lines[-1].strip():
             lines.pop()
+
+        return lines
+
+    def remove_leading_blank_lines(self, lines: list[str]) -> list[str]:
+        while lines and not lines[0].strip():
+            lines.pop(0)
 
         return lines
 
@@ -138,35 +188,73 @@ class DockerHostsManager:
 
         for addresses in self.hosts.values():
             for addr in addresses:
-                suffixed_domains = [f"{d}.{tld}" for d in addr["domains"]]
+                domains = addr["domains"]
+                assert isinstance(domains, set)
+
+                if not domains:
+                    continue
+
+                ip = addr["ip"]
+                assert isinstance(ip, str)
+
+                suffixed_domains = [f"{d}.{tld}" for d in domains]
                 sorted_domains = sorted(suffixed_domains)
-                entries.append(f"{addr['ip']}    {'   '.join(sorted_domains)}\n")
+                entries.append(f"{ip}    {'   '.join(sorted_domains)}\n")
+
+        if len(entries) == 1:
+            return []
 
         entries.append(f"{END_PATTERN}\n")
 
         return entries
 
-    def write_hosts_file(self, hosts_path: Path, content: str):
+    def write_hosts_file(self, hosts_path: Path, content: str) -> None:
         aux_path = hosts_path.with_suffix(".aux")
-        aux_path.write_text(content)
-        aux_path.replace(hosts_path)
+
+        try:
+            aux_path.write_text(content)
+
+            if hosts_path.exists():
+                existing = hosts_path.stat()
+                os.chmod(aux_path, stat.S_IMODE(existing.st_mode))
+
+                try:
+                    os.chown(aux_path, existing.st_uid, existing.st_gid)
+                except PermissionError:
+                    pass
+
+            aux_path.replace(hosts_path)
+        except BaseException:
+            try:
+                aux_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+            raise
 
         self.log.info("wrote hosts file", path=str(hosts_path))
 
     def update_hosts_file(
         self,
-        hosts_path: str,
+        hosts_path: Path | str,
         dry_run: bool,
         tld: str,
         print_dry_run: bool = True,
-    ):
+    ) -> None:
         if not self.hosts:
             self.log.info("removing all hosts before exit")
         else:
             self.log.info("updating hosts file")
+
             for addresses in self.hosts.values():
                 for address in addresses:
-                    domains = sorted(f"{domain}.{tld}" for domain in address["domains"])
+                    domains_value = address["domains"]
+                    assert isinstance(domains_value, set)
+
+                    if not domains_value:
+                        continue
+
+                    domains = sorted(f"{domain}.{tld}" for domain in domains_value)
                     self.log.debug(
                         "adding host entry",
                         ip=address["ip"],
@@ -174,48 +262,76 @@ class DockerHostsManager:
                     )
 
         path = Path(hosts_path)
-        lines = self.read_existing_hosts(path)
-        lines = self.remove_trailing_blank_lines(lines)
+
+        if path.exists():
+            head, tail = self.split_existing_hosts(path)
+        else:
+            head, tail = [], []
+
+        head = self.remove_trailing_blank_lines(head)
+        tail = self.remove_leading_blank_lines(tail)
 
         host_entries = self.generate_host_entries(tld)
 
         if dry_run:
             if print_dry_run:
-                print("".join(host_entries))
+                click.echo("".join(host_entries), nl=False)
 
             return
 
+        lines = head
         lines.extend(host_entries)
+
+        if tail:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+
+            lines.extend(tail)
+
         proposed_content = "".join(lines)
         self.log.info("proposed hosts content", content=proposed_content)
 
         self.write_hosts_file(path, proposed_content)
 
     def generate_json_output(self, tld: str) -> str:
-        result = {}
+        result: dict[str, dict[str, list[str]]] = {}
 
         for container_name in sorted(self.hosts):
             addresses = self.hosts[container_name]
+            ips: set[str] = set()
+            aliases: set[str] = set()
+
+            for address in addresses:
+                ip = address["ip"]
+                assert isinstance(ip, str)
+                ips.add(ip)
+
+                domains = address["domains"]
+                assert isinstance(domains, set)
+
+                for domain in domains:
+                    aliases.add(f"{domain}.{tld}")
+
             result[container_name] = {
-                "addresses": sorted({address["ip"] for address in addresses}),
-                "aliases": sorted(
-                    {
-                        f"{domain}.{tld}"
-                        for address in addresses
-                        for domain in address["domains"]
-                    }
-                ),
+                "addresses": sorted(ips),
+                "aliases": sorted(aliases),
             }
 
         return json.dumps(result, indent=2, sort_keys=True)
 
-    def remove_colliding_domains(self) -> set[str]:
+    def find_colliding_domains(
+        self,
+    ) -> tuple[set[str], dict[str, set[str]]]:
         domain_containers: dict[str, set[str]] = {}
 
         for container_id, addresses in self.hosts.items():
-            container_domains = {
-                domain for address in addresses for domain in address["domains"]
-            }
+            container_domains: set[str] = set()
+
+            for address in addresses:
+                domains = address["domains"]
+                assert isinstance(domains, set)
+
+                container_domains.update(domains)
 
             for domain in container_domains:
                 domain_containers.setdefault(domain, set()).add(container_id)
@@ -226,43 +342,98 @@ class DockerHostsManager:
             if len(container_ids) > 1
         }
 
+        return colliding_domains, domain_containers
+
+    def warn_for_collisions(
+        self,
+        colliding_domains: set[str],
+        domain_containers: dict[str, set[str]],
+        hosts_source: dict[str, list[dict[str, str | set[str]]]] | None = None,
+    ) -> None:
+        source = hosts_source if hosts_source is not None else self.hosts
+
         for domain in sorted(colliding_domains):
-            container_names = sorted(
-                {
-                    address["name"]
-                    for container_id in domain_containers[domain]
-                    for address in self.hosts[container_id]
-                }
-            )
+            names: set[str] = set()
+
+            for container_id in domain_containers[domain]:
+                for address in source.get(container_id, []):
+                    name = address["name"]
+                    assert isinstance(name, str)
+
+                    names.add(name)
+
             self.log.warning(
                 "omitting colliding hostname",
                 hostname=domain,
-                containers=container_names,
+                containers=sorted(names),
             )
+
+    def remove_colliding_domains(self) -> set[str]:
+        colliding_domains, domain_containers = self.find_colliding_domains()
+
+        self.warn_for_collisions(colliding_domains, domain_containers)
 
         for addresses in self.hosts.values():
             for address in addresses:
-                address["domains"].difference_update(colliding_domains)
+                domains = address["domains"]
+                assert isinstance(domains, set)
+
+                domains.difference_update(colliding_domains)
 
         return colliding_domains
+
+    def prepare_hosts_for_output(
+        self,
+        include_patterns: tuple[re.Pattern[str], ...],
+        exclude_patterns: tuple[re.Pattern[str], ...],
+    ) -> None:
+        colliding_domains, domain_containers = self.find_colliding_domains()
+        snapshot = self.hosts
+
+        included_keys = {
+            container_name
+            for container_name in snapshot
+            if container_name_is_included(
+                container_name, include_patterns, exclude_patterns
+            )
+        }
+
+        relevant_collisions = {
+            domain
+            for domain in colliding_domains
+            if domain_containers[domain] & included_keys
+        }
+
+        self.hosts = {
+            container_name: addresses
+            for container_name, addresses in snapshot.items()
+            if container_name in included_keys
+        }
+
+        for addresses in self.hosts.values():
+            for address in addresses:
+                domains = address["domains"]
+                assert isinstance(domains, set)
+
+                domains.difference_update(colliding_domains)
+
+        self.warn_for_collisions(
+            relevant_collisions, domain_containers, hosts_source=snapshot
+        )
 
     def load_running_containers(
         self,
         include_patterns: tuple[re.Pattern[str], ...] = (),
         exclude_patterns: tuple[re.Pattern[str], ...] = (),
-    ):
+    ) -> None:
+        assert self.client is not None
+
         for container in self.client.containers.list():
             info = container.attrs
             container_name = info["Name"].strip("/")
-
-            if not container_name_is_included(
-                container_name, include_patterns, exclude_patterns
-            ):
-                continue
-
             self.hosts[container_name] = self.get_container_data(info)
 
-        self.remove_colliding_domains()
+        self.prepare_hosts_for_output(include_patterns, exclude_patterns)
 
 
 @click.command()
@@ -298,21 +469,35 @@ class DockerHostsManager:
     prog_name="docker-hosts",
     message="%(prog)s version %(version)s",
 )
-def main(file, dry_run, tld, include, exclude, json_output):
+def main(
+    file: str,
+    dry_run: bool,
+    tld: str,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+    json_output: bool,
+) -> None:
     include_patterns = compile_patterns(include, "--include")
     exclude_patterns = compile_patterns(exclude, "--exclude")
+
+    hosts_path = Path(file)
+    if not dry_run:
+        ensure_hosts_file_is_writable(hosts_path)
 
     os.environ.setdefault("PYTHON_LOG_PATH", "stderr")
     log = configure_logger()
     client = docker.from_env()
     manager = DockerHostsManager(client, log)
     manager.load_running_containers(include_patterns, exclude_patterns)
-    manager.update_hosts_file(
-        file,
-        dry_run,
-        tld,
-        print_dry_run=not json_output,
-    )
+    try:
+        manager.update_hosts_file(
+            hosts_path,
+            dry_run,
+            tld,
+            print_dry_run=not json_output,
+        )
+    except PermissionError as error:
+        raise hosts_file_permission_error(hosts_path) from error
 
     if json_output:
         click.echo(manager.generate_json_output(tld))

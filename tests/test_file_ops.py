@@ -231,3 +231,98 @@ def test_update_hosts_file_empty_hosts(manager, tmp_hosts_file):
     content = tmp_hosts_file.read_text()
 
     assert "127.0.0.1    localhost" in content
+
+
+@pytest.mark.unit
+def test_generate_host_entries_skips_empty_domains(manager):
+    manager.hosts = {
+        "container1": [
+            {"ip": "172.17.0.2", "name": "empty", "domains": set()},
+            {"ip": "172.17.0.3", "name": "app", "domains": {"app"}},
+        ]
+    }
+
+    entries = manager.generate_host_entries("localhost")
+
+    assert len(entries) == 3
+    assert "172.17.0.2" not in "".join(entries)
+    assert "app.localhost" in entries[1]
+
+
+@pytest.mark.unit
+def test_generate_host_entries_all_empty_returns_no_markers(manager):
+    manager.hosts = {
+        "container1": [{"ip": "172.17.0.2", "name": "empty", "domains": set()}]
+    }
+
+    assert manager.generate_host_entries("localhost") == []
+
+
+@pytest.mark.unit
+def test_split_existing_hosts_preserves_tail(manager, tmp_hosts_file):
+    content = (
+        f"127.0.0.1    localhost\n{START_PATTERN}"
+        f"172.17.0.2    old.localhost\n{END_PATTERN}\n"
+        "192.168.1.1    custom.host\n"
+    )
+    tmp_hosts_file.write_text(content)
+
+    head, tail = manager.split_existing_hosts(tmp_hosts_file)
+
+    assert "".join(head) == "127.0.0.1    localhost\n"
+    assert "".join(tail) == "\n192.168.1.1    custom.host\n"
+
+
+@pytest.mark.unit
+def test_update_hosts_file_preserves_content_after_end_marker(manager, tmp_hosts_file):
+    existing = (
+        f"127.0.0.1    localhost\n{START_PATTERN}"
+        f"172.17.0.2    old.localhost\n{END_PATTERN}\n"
+        "192.168.1.1    custom.host\n"
+    )
+    tmp_hosts_file.write_text(existing)
+
+    manager.hosts = {
+        "container1": [{"ip": "172.17.0.3", "name": "new", "domains": {"new"}}]
+    }
+
+    manager.update_hosts_file(str(tmp_hosts_file), dry_run=False, tld="localhost")
+
+    content = tmp_hosts_file.read_text()
+
+    assert "old.localhost" not in content
+    assert "new.localhost" in content
+    assert "192.168.1.1    custom.host" in content
+    assert content.index("custom.host") > content.index(END_PATTERN.strip())
+
+
+@pytest.mark.unit
+def test_write_hosts_file_preserves_permissions(manager, tmp_hosts_file):
+    tmp_hosts_file.chmod(0o600)
+    before = tmp_hosts_file.stat().st_mode
+
+    manager.write_hosts_file(tmp_hosts_file, "127.0.0.1    localhost\n")
+
+    assert tmp_hosts_file.stat().st_mode == before
+
+
+@pytest.mark.unit
+def test_update_hosts_file_creates_missing_file(manager, tmp_path):
+    hosts_file = tmp_path / "hosts"
+
+    manager.hosts = {
+        "container1": [{"ip": "172.17.0.2", "name": "app", "domains": {"app"}}]
+    }
+
+    manager.update_hosts_file(str(hosts_file), dry_run=False, tld="localhost")
+
+    content = hosts_file.read_text()
+
+    assert "app.localhost" in content
+
+
+@pytest.mark.unit
+def test_remove_leading_blank_lines(manager):
+    assert manager.remove_leading_blank_lines(["\n", "", "line1\n"]) == ["line1\n"]
+    assert manager.remove_leading_blank_lines(["line1\n"]) == ["line1\n"]
+    assert manager.remove_leading_blank_lines([]) == []

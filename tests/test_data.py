@@ -23,9 +23,7 @@ def test_container_name_is_included_when_any_include_matches():
 def test_container_name_is_not_included_when_no_include_matches():
     include_patterns = (re.compile("^other-"), re.compile("redis"))
 
-    assert not container_name_is_included(
-        "myproject-postgres-1", include_patterns, ()
-    )
+    assert not container_name_is_included("myproject-postgres-1", include_patterns, ())
 
 
 @pytest.mark.unit
@@ -62,12 +60,8 @@ def test_remove_colliding_domains_omits_domains_from_different_containers(
     collisions = manager.remove_colliding_domains()
 
     assert collisions == {"postgres"}
-    assert manager.hosts["container-1"][0]["domains"] == {
-        "project-one-postgres-1"
-    }
-    assert manager.hosts["container-2"][0]["domains"] == {
-        "project-two-postgres-1"
-    }
+    assert manager.hosts["container-1"][0]["domains"] == {"project-one-postgres-1"}
+    assert manager.hosts["container-2"][0]["domains"] == {"project-two-postgres-1"}
 
     captured = capsys.readouterr()
     captured_output = f"{captured.out}{captured.err}"
@@ -96,9 +90,107 @@ def test_remove_colliding_domains_keeps_domain_on_multiple_container_networks(ma
 
     assert collisions == set()
     assert all(
-        "postgres" in address["domains"]
-        for address in manager.hosts["container-1"]
+        "postgres" in address["domains"] for address in manager.hosts["container-1"]
     )
+
+
+@pytest.mark.unit
+def test_prepare_hosts_detects_collisions_before_filtering(manager):
+    manager.hosts = {
+        "project-one-postgres-1": [
+            {
+                "ip": "172.17.0.2",
+                "name": "project-one-postgres-1",
+                "domains": {"project-one-postgres-1", "postgres"},
+            }
+        ],
+        "project-two-postgres-1": [
+            {
+                "ip": "172.18.0.2",
+                "name": "project-two-postgres-1",
+                "domains": {"project-two-postgres-1", "postgres"},
+            }
+        ],
+    }
+
+    manager.prepare_hosts_for_output(
+        include_patterns=(re.compile("^project-one-"),),
+        exclude_patterns=(),
+    )
+
+    assert set(manager.hosts) == {"project-one-postgres-1"}
+    assert manager.hosts["project-one-postgres-1"][0]["domains"] == {
+        "project-one-postgres-1"
+    }
+
+
+@pytest.mark.unit
+def test_prepare_hosts_skips_warnings_for_excluded_collisions(manager, capsys):
+    manager.hosts = {
+        "project-one-postgres-1": [
+            {
+                "ip": "172.17.0.2",
+                "name": "project-one-postgres-1",
+                "domains": {"project-one-postgres-1", "postgres"},
+            }
+        ],
+        "project-two-postgres-1": [
+            {
+                "ip": "172.18.0.2",
+                "name": "project-two-postgres-1",
+                "domains": {"project-two-postgres-1", "postgres"},
+            }
+        ],
+        "unrelated-redis-1": [
+            {
+                "ip": "172.19.0.2",
+                "name": "unrelated-redis-1",
+                "domains": {"unrelated-redis-1", "redis"},
+            }
+        ],
+    }
+
+    manager.prepare_hosts_for_output(
+        include_patterns=(re.compile("^unrelated-"),),
+        exclude_patterns=(),
+    )
+
+    assert set(manager.hosts) == {"unrelated-redis-1"}
+
+    captured = capsys.readouterr()
+    assert "omitting colliding hostname" not in f"{captured.out}{captured.err}"
+
+
+@pytest.mark.unit
+def test_prepare_hosts_warning_lists_all_claimants(manager, capsys):
+    manager.hosts = {
+        "project-one-postgres-1": [
+            {
+                "ip": "172.17.0.2",
+                "name": "project-one-postgres-1",
+                "domains": {"project-one-postgres-1", "postgres"},
+            }
+        ],
+        "project-two-postgres-1": [
+            {
+                "ip": "172.18.0.2",
+                "name": "project-two-postgres-1",
+                "domains": {"project-two-postgres-1", "postgres"},
+            }
+        ],
+    }
+
+    manager.prepare_hosts_for_output(
+        include_patterns=(re.compile("^project-one-"),),
+        exclude_patterns=(),
+    )
+
+    captured = capsys.readouterr()
+    captured_output = f"{captured.out}{captured.err}"
+
+    assert "omitting colliding hostname" in captured_output
+    assert "project-one-postgres-1" in captured_output
+    assert "project-two-postgres-1" in captured_output
 
 
 @pytest.mark.unit

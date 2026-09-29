@@ -1,7 +1,5 @@
 """Pytest configuration and shared fixtures for docker-hosts tests."""
 
-from pathlib import Path
-
 import docker
 import pytest
 from structlog_config import configure_logger
@@ -23,20 +21,20 @@ def log():
 
 @pytest.fixture
 def tmp_hosts_file(tmp_path):
-    """Creates a temporary hosts file in tmp/ directory for testing."""
-    hosts_dir = Path.cwd() / "tmp"
-    hosts_dir.mkdir(exist_ok=True)
-
-    hosts_file = hosts_dir / "hosts"
+    """Creates an isolated temporary hosts file for testing."""
+    hosts_file = tmp_path / "hosts"
     hosts_file.write_text("127.0.0.1    localhost\n")
 
-    yield hosts_file
-
-    if hosts_file.exists():
-        hosts_file.unlink()
+    return hosts_file
 
 
 @pytest.fixture
-def manager(docker_client, log):
-    """Provides a fresh DockerHostsManager instance for each test."""
+def manager(log):
+    """Provides a manager without a Docker client for unit tests."""
+    return DockerHostsManager(None, log)
+
+
+@pytest.fixture
+def docker_manager(docker_client, log):
+    """Provides a manager with a real Docker client for integration tests."""
     return DockerHostsManager(docker_client, log)

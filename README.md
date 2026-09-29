@@ -69,10 +69,15 @@ When both options are provided, a container must match at least one `--include`
 expression and no `--exclude` expressions. Without filters, all running containers
 are included.
 
-If multiple included containers claim the same hostname, the ambiguous hostname is
+If multiple running containers claim the same hostname, the ambiguous hostname is
 omitted from all generated entries and a warning identifies the affected containers.
+Collisions are detected across all running containers before `--include` and
+`--exclude` determine which containers are written or reported. Warnings are only
+emitted when a collision affects selected containers, but list all claimants.
 
-The tool requires sudo when writing to `/etc/hosts`, but you can test with `--dry-run` first to see what it would do.
+The tool requires permission to replace the hosts file and will suggest using
+`sudo` or `--dry-run` when permission is denied. You can test with `--dry-run`
+first to see what it would do.
 
 ### Windows / WSL
 
