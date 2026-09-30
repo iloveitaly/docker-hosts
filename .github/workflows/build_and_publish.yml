@@ -60,7 +60,6 @@ jobs:
         id: release
         with:
           release-type: python
-          token: ${{ secrets.GH_PERSONAL_TOKEN }}
 
   build-and-publish:
     needs: release-please
