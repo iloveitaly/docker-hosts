@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0](https://github.com/iloveitaly/docker-hosts/compare/v0.1.1...v0.2.0) (2026-10-05)
+
+
+### Features
+
+* **cli:** add --json flag to output container aliases as JSON ([5b5f94a](https://github.com/iloveitaly/docker-hosts/commit/5b5f94a3cac362ab8da80cb4bf6d1376683217a2))
+* **cli:** add container include and exclude regex filters ([39c5959](https://github.com/iloveitaly/docker-hosts/commit/39c5959c9ad68a252e0f6a4b4c3baecb25e28176))
+* **cli:** add version option to command line interface ([13167ac](https://github.com/iloveitaly/docker-hosts/commit/13167ac1adbce82598fa11c12444d87dbab05730))
+
 ## [0.1.1](https://github.com/iloveitaly/docker-hosts/compare/v0.1.0...v0.1.1) (2026-01-23)
 
 
