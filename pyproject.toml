@@ -14,7 +14,14 @@ keywords = [
     "automation",
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = ["click", "docker", "structlog-config"]
 authors = [{ name = "Michael Bianco", email = "mike@mikebian.co" }]
 urls = { "Repository" = "https://github.com/iloveitaly/docker-hosts" }
@@ -26,7 +33,7 @@ docker-hosts = "docker_hosts:main"
 
 
 [build-system]
-requires = ["uv_build>=0.11.0,<0.13"]
+requires = ["uv_build>=0.11.0,<0.14"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -41,6 +48,7 @@ dev = [
     "coverage>=7.13.4",
     "pytest-cov>=7.0.0",
     "covdefaults>=2.3.0",
+    "beautiful-traceback>=1.0.2",
 ]
 
 [tool.pyright]
