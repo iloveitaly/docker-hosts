@@ -79,6 +79,15 @@ The tool requires permission to replace the hosts file and will suggest using
 `sudo` or `--dry-run` when permission is denied. You can test with `--dry-run`
 first to see what it would do.
 
+Inside a container, Docker's mounted `/etc/hosts` cannot be replaced. If atomic
+replacement fails with `EBUSY`, the tool writes to the existing file in place and
+truncates any remaining bytes, preserving its ownership and permissions. Readers
+may briefly see incomplete content during this fallback. Other errors propagate.
+
+These mappings apply to the machine or container running `docker-hosts`. Child
+containers need Compose service names or their own explicit hostname configuration;
+they do not inherit the runner's hosts entries.
+
 ### Windows / WSL
 
 You may encounter issues if using Docker Desktop. Running Docker directly on WSL works properly.
@@ -86,7 +95,7 @@ You may encounter issues if using Docker Desktop. Running Docker directly on WSL
 ## Features
 
 - Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
-- Safe writes - uses atomic file writes (write to temp, then rename) to avoid corrupting your hosts file. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
+- Safe writes - uses atomic file writes (write to temp, then rename) by default, with an in-place fallback for mounted files that return `EBUSY`. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
 - Structured logging - built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.
 - Dry-run mode - test what would be written before committing to changes. Great for understanding what the tool does or debugging issues.
 
@@ -114,9 +123,12 @@ pytest -v -m integration
 ```
 
 The test suite includes:
-- Integration tests that verify container detection using real Docker containers
+- Integration tests that verify container detection and writes to Docker's mounted `/etc/hosts`
 - Unit tests for data extraction and file operations
 - CLI tests using temporary hosts files in `tmp/hosts`
+
+The mounted-hosts test pulls `python:3.13-slim` and installs the checkout and pytest
+inside a disposable container. It requires access to Docker Hub and PyPI.
 
 # [MIT License](LICENSE.md)
 
