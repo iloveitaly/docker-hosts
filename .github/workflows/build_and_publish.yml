@@ -24,11 +24,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # full history so `gitleaks git` in `just lint` can scan every commit
           fetch-depth: 0
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
         with:
           bootstrap: true
           bootstrap_args: --update --yes
@@ -43,11 +43,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.14", "3.13", "3.12"]
+        python-version: ["3.15", "3.14", "3.13", "3.12"]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: jdx/mise-action@v4
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
         with:
           bootstrap: true
           bootstrap_args: --update --yes
@@ -66,8 +66,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
+    permissions:
+      contents: write
+      issues: write
+      # NOTE this permission requires configuration to be set on the repo, check `just github_repo_permissions_create`
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: googleapis/release-please-action@v5
         id: release
         with:
@@ -81,11 +86,11 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # Check out branch instead of detached HEAD so bare git push works
           ref: ${{ github.ref_name }}
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
         with:
           bootstrap: true
           bootstrap_args: --update --yes
