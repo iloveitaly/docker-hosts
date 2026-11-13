@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1](https://github.com/iloveitaly/docker-hosts/compare/v0.2.0...v0.2.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* keep copier updates on the root answers file ([7c86488](https://github.com/iloveitaly/docker-hosts/commit/7c86488622eeb4799ba67cef38bc0aa48dd299a1))
+* log when a mounted hosts file is written in place ([cd7e728](https://github.com/iloveitaly/docker-hosts/commit/cd7e72892378787dc847fc24fa082a57b4788f25))
+* specify answers file when updating copier template ([7c86488](https://github.com/iloveitaly/docker-hosts/commit/7c86488622eeb4799ba67cef38bc0aa48dd299a1))
+* support mounted hosts files with an EBUSY fallback ([#44](https://github.com/iloveitaly/docker-hosts/issues/44)) ([cd7e728](https://github.com/iloveitaly/docker-hosts/commit/cd7e72892378787dc847fc24fa082a57b4788f25))
+* update mounted hosts files in place on EBUSY ([cd7e728](https://github.com/iloveitaly/docker-hosts/commit/cd7e72892378787dc847fc24fa082a57b4788f25))
+
 ## [0.2.0](https://github.com/iloveitaly/docker-hosts/compare/v0.1.1...v0.2.0) (2026-10-05)
 
 
