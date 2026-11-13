@@ -442,7 +442,10 @@ class DockerHostsManager:
     "--dry-run", is_flag=True, help="Simulate updates without writing to file"
 )
 @click.option(
-    "--tld", default="localhost", show_default=True, help="TLD to append to domains"
+    "--tld",
+    default="internal",
+    show_default=True,
+    help="TLD to append to domains. .internal and .test are the only recommended TLDs",
 )
 @click.option(
     "--include",

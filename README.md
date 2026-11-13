@@ -7,7 +7,7 @@
 
 Automatically manage Docker container hostnames in your `/etc/hosts` file.
 
-I built this to solve a specific problem: using Docker Compose for local development services (postgres, redis, etc.) and sharing the same compose file with CI. I wanted `DATABASE_URL=postgres://postgres.localhost/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere - no manual `/etc/hosts` edits, no environment-specific configuration. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template).
+I built this to solve a specific problem: using Docker Compose for local development services (postgres, redis, etc.) and sharing the same compose file with CI. I wanted `DATABASE_URL=postgres://postgres.internal/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere - no manual `/etc/hosts` edits, no environment-specific configuration. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template).
 
 ## Installation
 
@@ -37,10 +37,10 @@ Preview what would be written without making changes:
 docker-hosts --dry-run
 ```
 
-Use a custom TLD (defaults to `.localhost`):
+`.internal` and `.test` are the only recommended TLDs. The default is `.internal`:
 
 ```bash
-sudo docker-hosts --tld dev
+sudo docker-hosts --tld test
 ```
 
 Specify a custom hosts file path:
