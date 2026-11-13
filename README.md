@@ -7,7 +7,7 @@
 
 Automatically manage Docker container hostnames in your `/etc/hosts` file.
 
-I built this to solve a specific problem: using Docker Compose for local development services (postgres, redis, etc.) and sharing the same compose file with CI. I wanted `DATABASE_URL=postgres://postgres.localhost/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere - no manual `/etc/hosts` edits, no environment-specific configuration. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template).
+I built this to solve a specific problem: using Docker Compose for local development services (postgres, redis, etc.) and sharing the same compose file with CI. I wanted `DATABASE_URL=postgres://postgres.internal/mydb` to work both locally and in CI without maintaining separate configs. This tool creates stable domains for Docker Compose services that work everywhere - no manual `/etc/hosts` edits, no environment-specific configuration. Originally extracted from my [python-starter-template](https://github.com/iloveitaly/python-starter-template).
 
 ## Installation
 
@@ -37,10 +37,10 @@ Preview what would be written without making changes:
 docker-hosts --dry-run
 ```
 
-Use a custom TLD (defaults to `.localhost`):
+`.internal` and `.test` are the only recommended TLDs. The default is `.internal`:
 
 ```bash
-sudo docker-hosts --tld dev
+sudo docker-hosts --tld test
 ```
 
 Specify a custom hosts file path:
@@ -79,6 +79,15 @@ The tool requires permission to replace the hosts file and will suggest using
 `sudo` or `--dry-run` when permission is denied. You can test with `--dry-run`
 first to see what it would do.
 
+Inside a container, Docker's mounted `/etc/hosts` cannot be replaced. If atomic
+replacement fails with `EBUSY`, the tool writes to the existing file in place and
+truncates any remaining bytes, preserving its ownership and permissions. Readers
+may briefly see incomplete content during this fallback. Other errors propagate.
+
+These mappings apply to the machine or container running `docker-hosts`. Child
+containers need Compose service names or their own explicit hostname configuration;
+they do not inherit the runner's hosts entries.
+
 ### Windows / WSL
 
 You may encounter issues if using Docker Desktop. Running Docker directly on WSL works properly.
@@ -86,7 +95,7 @@ You may encounter issues if using Docker Desktop. Running Docker directly on WSL
 ## Features
 
 - Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
-- Safe writes - uses atomic file writes (write to temp, then rename) to avoid corrupting your hosts file. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
+- Safe writes - uses atomic file writes (write to temp, then rename) by default, with an in-place fallback for mounted files that return `EBUSY`. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
 - Structured logging - built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.
 - Dry-run mode - test what would be written before committing to changes. Great for understanding what the tool does or debugging issues.
 
@@ -114,9 +123,12 @@ pytest -v -m integration
 ```
 
 The test suite includes:
-- Integration tests that verify container detection using real Docker containers
+- Integration tests that verify container detection and writes to Docker's mounted `/etc/hosts`
 - Unit tests for data extraction and file operations
 - CLI tests using temporary hosts files in `tmp/hosts`
+
+The mounted-hosts test pulls `python:3.13-slim` and installs the checkout and pytest
+inside a disposable container. It requires access to Docker Hub and PyPI.
 
 # [MIT License](LICENSE.md)
 

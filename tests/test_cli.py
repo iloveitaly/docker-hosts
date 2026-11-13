@@ -30,6 +30,8 @@ def test_cli_help(runner):
     assert "Usage:" in result.output
     assert "--dry-run" in result.output
     assert "--tld" in result.output
+    assert "internal" in result.output
+    assert ".test" in result.output
     assert "--include" in result.output
     assert "--exclude" in result.output
     assert "--json" in result.output

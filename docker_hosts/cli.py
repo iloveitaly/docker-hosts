@@ -5,6 +5,7 @@ Monitors running containers and their networks, updating /etc/hosts with contain
 IPs, hostnames, and network aliases.
 """
 
+import errno
 import json
 import os
 import re
@@ -210,6 +211,7 @@ class DockerHostsManager:
 
     def write_hosts_file(self, hosts_path: Path, content: str) -> None:
         aux_path = hosts_path.with_suffix(".aux")
+        write_method = "atomic_replace"
 
         try:
             aux_path.write_text(content)
@@ -223,7 +225,23 @@ class DockerHostsManager:
                 except PermissionError:
                     pass
 
-            aux_path.replace(hosts_path)
+            try:
+                aux_path.replace(hosts_path)
+            except OSError as error:
+                if error.errno != errno.EBUSY:
+                    raise
+
+                self.log.info(
+                    "hosts file cannot be replaced, writing in place",
+                    path=str(hosts_path),
+                )
+
+                with hosts_path.open("r+") as hosts_file:
+                    hosts_file.write(content)
+                    hosts_file.truncate()
+
+                aux_path.unlink()
+                write_method = "in_place"
         except BaseException:
             try:
                 aux_path.unlink(missing_ok=True)
@@ -232,7 +250,7 @@ class DockerHostsManager:
 
             raise
 
-        self.log.info("wrote hosts file", path=str(hosts_path))
+        self.log.info("wrote hosts file", path=str(hosts_path), method=write_method)
 
     def update_hosts_file(
         self,
@@ -442,7 +460,10 @@ class DockerHostsManager:
     "--dry-run", is_flag=True, help="Simulate updates without writing to file"
 )
 @click.option(
-    "--tld", default="localhost", show_default=True, help="TLD to append to domains"
+    "--tld",
+    default="internal",
+    show_default=True,
+    help="TLD to append to domains. .internal and .test are the only recommended TLDs",
 )
 @click.option(
     "--include",

@@ -166,6 +166,31 @@ def test_write_hosts_file_creates_aux(manager, tmp_hosts_file, log):
 
 
 @pytest.mark.unit
+def test_write_hosts_file_replaces_existing_file(manager, tmp_hosts_file):
+    original_content = tmp_hosts_file.read_text()
+    content = "192.0.2.1    app.localhost\n"
+
+    with tmp_hosts_file.open() as original_file:
+        manager.write_hosts_file(tmp_hosts_file, content)
+
+        assert original_file.read() == original_content
+
+    assert tmp_hosts_file.read_text() == content
+
+
+@pytest.mark.unit
+def test_write_hosts_file_propagates_replacement_error(manager, tmp_path):
+    hosts_directory = tmp_path / "hosts"
+    hosts_directory.mkdir()
+
+    with pytest.raises(IsADirectoryError):
+        manager.write_hosts_file(hosts_directory, "192.0.2.1    app.localhost\n")
+
+    assert hosts_directory.is_dir()
+    assert not hosts_directory.with_suffix(".aux").exists()
+
+
+@pytest.mark.unit
 def test_update_hosts_file_dry_run(manager, tmp_hosts_file, capsys):
     """Dry-run mode prints to stdout without modifying file."""
     original_content = tmp_hosts_file.read_text()
