@@ -231,6 +231,11 @@ class DockerHostsManager:
                 if error.errno != errno.EBUSY:
                     raise
 
+                self.log.info(
+                    "hosts file cannot be replaced, writing in place",
+                    path=str(hosts_path),
+                )
+
                 with hosts_path.open("r+") as hosts_file:
                     hosts_file.write(content)
                     hosts_file.truncate()
