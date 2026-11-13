@@ -1,6 +1,6 @@
 [project]
 name = "docker-hosts"
-version = "0.2.0"
+version = "0.2.1"
 description = "Automatically manage Docker container hostnames in /etc/hosts for local development and CI"
 keywords = [
     "docker",
