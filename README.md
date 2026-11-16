@@ -69,6 +69,13 @@ When both options are provided, a container must match at least one `--include`
 expression and no `--exclude` expressions. Without filters, all running containers
 are included.
 
+Docker Compose containers with `com.docker.compose.service` and
+`com.docker.compose.project` labels also receive project-scoped domains in the
+form `<service>.<project>.<tld>` (for example, `postgres.my-app.internal`).
+When multiple Compose projects run simultaneously and share service names like
+`postgres`, bare `<service>.<tld>` collides and is omitted while
+`<service>.<project>.<tld>` remains available.
+
 If multiple running containers claim the same hostname, the ambiguous hostname is
 omitted from all generated entries and a warning identifies the affected containers.
 Collisions are detected across all running containers before `--include` and
@@ -94,6 +101,7 @@ You may encounter issues if using Docker Desktop. Running Docker directly on WSL
 
 ## Features
 
+- Compose-aware - emits `<service>.<project>.<tld>` domains from Docker Compose labels (`com.docker.compose.service` and `com.docker.compose.project`) alongside network aliases, container names, and hostnames.
 - Network-aware - picks up all network aliases from Docker networks, not just the default bridge network. If your container is attached to multiple networks, all IPs and aliases get added.
 - Safe writes - uses atomic file writes (write to temp, then rename) by default, with an in-place fallback for mounted files that return `EBUSY`. Your existing entries are preserved - the tool only manages the section between `### Start Docker Domains ###` and `### End Docker Domains ###` markers.
 - Structured logging - built with structlog for clean, parseable logs. Set `LOG_LEVEL=DEBUG` to see what's happening under the hood.

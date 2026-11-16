@@ -116,6 +116,13 @@ class DockerHostsManager:
         container_ip = network_settings.get("IPAddress")
 
         common_domains = [container_name, container_hostname]
+        labels = config.get("Labels") or {}
+        compose_service = labels.get("com.docker.compose.service")
+        compose_project = labels.get("com.docker.compose.project")
+
+        if compose_service and compose_project:
+            common_domains.append(f"{compose_service}.{compose_project}")
+
         result: list[dict[str, str | set[str]]] = []
 
         network_entries = self.extract_network_entries(network_settings["Networks"])

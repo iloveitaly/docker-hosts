@@ -1,5 +1,6 @@
 """Unit tests for data extraction functions."""
 
+import json
 import re
 
 import pytest
@@ -435,3 +436,208 @@ def test_get_container_data_name_stripping(manager):
 
     assert result[0]["name"] == "my-container-name"
     assert "my-container-name" in result[0]["domains"]
+
+
+@pytest.mark.unit
+def test_get_container_data_with_compose_labels(manager):
+    info = {
+        "Name": "/my-app-postgres-1",
+        "Config": {
+            "Hostname": "82def96e6815",
+            "Domainname": "",
+            "Labels": {
+                "com.docker.compose.service": "postgres",
+                "com.docker.compose.project": "my-app",
+            },
+        },
+        "NetworkSettings": {
+            "IPAddress": "172.17.0.2",
+            "Networks": {
+                "my-app_default": {
+                    "IPAddress": "172.22.0.2",
+                    "Aliases": ["postgres"],
+                }
+            },
+        },
+    }
+
+    result = manager.get_container_data(info)
+
+    assert len(result) == 2
+
+    network_entry = next(e for e in result if e["ip"] == "172.22.0.2")
+    assert network_entry["domains"] == {
+        "postgres",
+        "postgres.my-app",
+        "my-app-postgres-1",
+        "82def96e6815",
+    }
+
+    default_entry = next(e for e in result if e["ip"] == "172.17.0.2")
+    assert default_entry["domains"] == {
+        "postgres.my-app",
+        "my-app-postgres-1",
+        "82def96e6815",
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "labels",
+    [
+        None,
+        {},
+        {"com.docker.compose.service": "postgres"},
+        {"com.docker.compose.project": "my-app"},
+        {"com.docker.compose.service": "", "com.docker.compose.project": "my-app"},
+        {"com.docker.compose.service": "postgres", "com.docker.compose.project": ""},
+    ],
+)
+def test_get_container_data_with_missing_or_incomplete_compose_labels(manager, labels):
+    info = {
+        "Name": "/mycontainer",
+        "Config": {
+            "Hostname": "myhost",
+            "Domainname": "",
+            "Labels": labels,
+        },
+        "NetworkSettings": {"IPAddress": "172.17.0.2", "Networks": {}},
+    }
+
+    result = manager.get_container_data(info)
+
+    assert len(result) == 1
+    assert result[0]["domains"] == {"mycontainer", "myhost"}
+
+
+@pytest.mark.unit
+def test_compose_project_domains_survive_cross_project_service_collision(manager):
+    movie_tickets_info = {
+        "Name": "/movie-tickets-postgres-1",
+        "Config": {
+            "Hostname": "82def96e6815",
+            "Domainname": "",
+            "Labels": {
+                "com.docker.compose.service": "postgres",
+                "com.docker.compose.project": "movie-tickets",
+            },
+        },
+        "NetworkSettings": {
+            "IPAddress": "",
+            "Networks": {
+                "movie-tickets_default": {
+                    "IPAddress": "172.22.0.2",
+                    "Aliases": ["postgres"],
+                }
+            },
+        },
+    }
+    starter_info = {
+        "Name": "/python-starter-template-postgres-1",
+        "Config": {
+            "Hostname": "879256d889d1",
+            "Domainname": "",
+            "Labels": {
+                "com.docker.compose.service": "postgres",
+                "com.docker.compose.project": "python-starter-template",
+            },
+        },
+        "NetworkSettings": {
+            "IPAddress": "",
+            "Networks": {
+                "python-starter-template_default": {
+                    "IPAddress": "172.23.0.4",
+                    "Aliases": ["postgres"],
+                }
+            },
+        },
+    }
+
+    manager.hosts = {
+        "movie-tickets-postgres-1": manager.get_container_data(movie_tickets_info),
+        "python-starter-template-postgres-1": manager.get_container_data(starter_info),
+    }
+
+    manager.prepare_hosts_for_output((), ())
+
+    hosts_text = "".join(manager.generate_host_entries("internal"))
+    assert "postgres.internal" not in hosts_text
+    assert "postgres.movie-tickets.internal" in hosts_text
+    assert "postgres.python-starter-template.internal" in hosts_text
+
+    json_output = json.loads(manager.generate_json_output("internal"))
+    assert json_output["movie-tickets-postgres-1"]["aliases"] == [
+        "82def96e6815.internal",
+        "movie-tickets-postgres-1.internal",
+        "postgres.movie-tickets.internal",
+    ]
+    assert json_output["python-starter-template-postgres-1"]["aliases"] == [
+        "879256d889d1.internal",
+        "postgres.python-starter-template.internal",
+        "python-starter-template-postgres-1.internal",
+    ]
+
+
+@pytest.mark.unit
+def test_scaled_compose_service_omits_colliding_project_domain(manager, capsys):
+    replica_one_info = {
+        "Name": "/my-app-postgres-1",
+        "Config": {
+            "Hostname": "aaaa1111bbbb",
+            "Domainname": "",
+            "Labels": {
+                "com.docker.compose.service": "postgres",
+                "com.docker.compose.project": "my-app",
+            },
+        },
+        "NetworkSettings": {
+            "IPAddress": "",
+            "Networks": {
+                "my-app_default": {
+                    "IPAddress": "172.22.0.2",
+                    "Aliases": ["postgres"],
+                }
+            },
+        },
+    }
+    replica_two_info = {
+        "Name": "/my-app-postgres-2",
+        "Config": {
+            "Hostname": "cccc2222dddd",
+            "Domainname": "",
+            "Labels": {
+                "com.docker.compose.service": "postgres",
+                "com.docker.compose.project": "my-app",
+            },
+        },
+        "NetworkSettings": {
+            "IPAddress": "",
+            "Networks": {
+                "my-app_default": {
+                    "IPAddress": "172.22.0.3",
+                    "Aliases": ["postgres"],
+                }
+            },
+        },
+    }
+
+    manager.hosts = {
+        "my-app-postgres-1": manager.get_container_data(replica_one_info),
+        "my-app-postgres-2": manager.get_container_data(replica_two_info),
+    }
+
+    manager.prepare_hosts_for_output((), ())
+
+    assert manager.hosts["my-app-postgres-1"][0]["domains"] == {
+        "my-app-postgres-1",
+        "aaaa1111bbbb",
+    }
+    assert manager.hosts["my-app-postgres-2"][0]["domains"] == {
+        "my-app-postgres-2",
+        "cccc2222dddd",
+    }
+
+    captured = capsys.readouterr()
+    captured_output = f"{captured.out}{captured.err}"
+    assert "omitting colliding hostname" in captured_output
+    assert "postgres.my-app" in captured_output
