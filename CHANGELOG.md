@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/iloveitaly/docker-hosts/compare/v0.2.1...v0.3.0) (2026-11-16)
+
+
+### Features
+
+* add compose service and project scoped domains ([ef54e43](https://github.com/iloveitaly/docker-hosts/commit/ef54e4310029b04e7d3d2a7e28ec87e08d9f3b53))
+* emit &lt;service&gt;.&lt;project&gt;.&lt;tld&gt; domains for Docker Compose containers ([ef54e43](https://github.com/iloveitaly/docker-hosts/commit/ef54e4310029b04e7d3d2a7e28ec87e08d9f3b53))
+
 ## [0.2.1](https://github.com/iloveitaly/docker-hosts/compare/v0.2.0...v0.2.1) (2026-11-13)
 
 
